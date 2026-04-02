@@ -1,5 +1,7 @@
 mod cli;
+mod config;
 mod docker;
+mod project;
 
 use clap::Parser;
 use cli::{Cli, Command};
