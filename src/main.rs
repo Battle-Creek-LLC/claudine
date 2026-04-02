@@ -4,7 +4,8 @@ mod docker;
 mod init;
 mod project;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::generate;
 use cli::{Cli, Command};
 
 fn main() -> anyhow::Result<()> {
@@ -17,6 +18,10 @@ fn main() -> anyhow::Result<()> {
         Command::Shell { project } => docker::cmd_shell(&project),
         Command::Destroy { project } => docker::cmd_destroy(&project),
         Command::List => docker::cmd_list(),
-        Command::Completions { .. } => anyhow::bail!("not implemented yet"),
+        Command::Completions { shell } => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "claudine", &mut std::io::stdout());
+            Ok(())
+        }
     }
 }
