@@ -7,21 +7,20 @@ Claudine is a standalone CLI tool that runs Claude Code inside isolated Docker c
 ```
 Host                                    Container (claudine:latest)
 ────────────────────────                ────────────────────────────────
-~/.gitconfig ──────────────┐
-~/.ssh/<key> ──────────────┤ bind-mount   /host-config/ (read-only)
-~/.claude/ ────────────────┘    (ro)           │
-                                          entrypoint.sh copies
-                                          into /workspace/home/
-                                               │
-Docker volume                                  │         Symlinks
-  claudine_<project> ──────── mounted ──► /workspace/    ─────────
-  ├── home/                                ├── home/  ◄── /home ($HOME)
+~/.gitconfig ──────┐
+~/.ssh/<key> ──────┤ one-shot setup    Copied into volume at init time
+~/.claude/ ────────┘ (claudine init)   by setup-home.sh
+                                             │
+Docker volume                                ▼
+  claudine_<project> ──────── mounted ──► /project/
+  ├── home/                                ├── home/       ($HOME)
   │   ├── .claude/                         │   ├── .claude/
   │   ├── .ssh/id_key                      │   ├── .ssh/id_key
   │   └── .gitconfig                       │   └── .gitconfig
-  └── project/                             └── project/ ◄── /project (workdir)
-      ├── <repo1>/                             ├── <repo1>/
-      └── <repo2>/                             └── <repo2>/
+  ├── <repo1>/                             ├── <repo1>/
+  └── <repo2>/                             └── <repo2>/
+
+~/claudine-share/<project>/ ── mounted ──► /share/   (host ↔ container)
 
 /var/run/docker.sock ──────── mounted ──► /var/run/docker.sock (DooD)
 ```
@@ -41,8 +40,8 @@ Rust binary built with `clap` for argument parsing and `serde` + `toml` for conf
 **Command structure (clap subcommands):**
 ```
 claudine init <project>                →  create volume, clone repo(s)
-claudine run <project>                 →  run Claude Code (default action)
-claudine shell <project>               →  open bash shell
+claudine run <project> [repo] [-- …]  →  run Claude Code (default action)
+claudine shell <project> [repo]        →  open bash shell
 claudine destroy <project>             →  remove volume + config
 claudine repo add <project> <url>      →  add a repo to a project
 claudine repo remove <project> <dir>   →  remove a repo from a project
@@ -72,6 +71,8 @@ src/
 ├── init.rs          # interactive project init flow (multi-repo)
 ├── project.rs       # project validation, volume/container helpers
 └── repo.rs          # repo add/remove/list subcommands
+
+setup-home.sh        # embedded script for home directory setup at init time
 ```
 
 ### Docker Image (`Dockerfile`)
@@ -81,32 +82,40 @@ Generic, project-agnostic image based on Debian bookworm:
 | Layer | Contents |
 |-------|----------|
 | Base | `debian:bookworm` |
-| System | `ca-certificates curl gnupg gosu git python3 python3-pip vim` |
-| Docker CLI | `docker-ce-cli docker-compose-plugin` (DooD pattern) |
+| System | `ca-certificates curl gnupg gosu git openssh-client python3 python3-pip vim` |
+| Docker CLI | `docker-ce-cli docker-buildx-plugin docker-compose-plugin` (DooD pattern) |
 | Claude Code | Native installer via `claude.ai/install.sh` |
-| User | Non-root `claude` user |
+| Ward | PII/secrets scanner for Claude Code hooks |
+| User | Non-root `claude` user with home at `/project/home` |
 | Alias | `claude="claude --dangerously-skip-permissions"` |
 
 The image contains no project-specific tooling. Additional tools can be layered via custom Dockerfiles that extend `claudine:latest`.
 
 ### Entrypoint (`entrypoint.sh`)
 
-Runs as root, performs runtime setup, then drops to the `claude` user via `gosu`.
+Runs as root, performs minimal runtime setup, then drops to the `claude` user via `gosu`.
 
 **Sequence:**
-1. Ensure `/workspace/home` and `/workspace/project` exist with correct ownership
-2. Create root-level symlinks: `/home` → `/workspace/home`, `/project` → `/workspace/project`
-3. Copy configs from `/host-config/` bind mounts into `/workspace/home/`
-   - `gitconfig` → `.gitconfig`
-   - `ssh_key` → `.ssh/id_key` (single key file, 600 perms, with auto-generated SSH config)
-   - `claude-credentials/` → `.claude/` and `.claude.json`
-4. Set `git config --global safe.directory '*'`
-5. Detect Docker socket GID, add `claude` user to matching group
-6. `exec gosu claude "$@"` (or `bash` if no args)
+1. Detect Docker socket GID, add `claude` user to matching group (for DooD access)
+2. Ensure `~/.local/bin` is on PATH
+3. `exec gosu claude "$@"` (or `bash` if no args)
 
-Configs are **copied** (not symlinked) because the bind mounts are read-only but tools like git and ssh may attempt writes to these paths.
+The entrypoint is intentionally minimal. All home directory setup (config copying, SSH key installation, Claude credentials) is handled by `setup-home.sh` during `claudine init`, not at container start time.
 
-**SSH key isolation:** Only a single SSH key (selected during `claudine init`) is mounted into the container. The entrypoint writes a minimal `~/.ssh/config` that uses this key for all hosts. This limits the container's access to only the key needed for the project's repositories.
+### Home Setup (`setup-home.sh`)
+
+Runs as root inside a one-shot container during `claudine init`. Sets up `/project/home` with configs, credentials, and Claude settings. Embedded into the binary via `include_str!` in `init.rs`.
+
+**Sequence:**
+1. Create `/project/home` and set ownership to `claude`
+2. Ensure `/project` is writable by `claude` (for cloning repos)
+3. Copy host gitconfig to `/project/home/.gitconfig`
+4. Install SSH key to `/project/home/.ssh/id_key` with restrictive permissions and auto-generated SSH config
+5. Copy `~/.claude/` credentials directory and `~/.claude.json` into the volume
+6. Write container-specific Claude settings (`settings.json`) with ward hooks for PII/secrets scanning
+7. Set `git config --global safe.directory '*'`
+
+**SSH key isolation:** Only a single SSH key (selected during `claudine init`) is copied into the volume. The setup script writes a minimal `~/.ssh/config` that uses this key for all hosts with `IdentitiesOnly yes`. No other keys from the host `~/.ssh/` directory are accessible inside the container.
 
 ### Config (`~/.config/claudine/`)
 
@@ -177,39 +186,50 @@ struct RepoConfig {
 2. Prompt for SSH key path (optional — leave empty for HTTPS repos)
 3. Loop: prompt for repo URL, directory name, branch (repeat until empty URL)
 4. docker volume create claudine_<project>
-5. Serialize ProjectConfig to config dir
-6. For each repo, run container through the entrypoint then clone:
+5. Create ~/claudine-share/<project>/ on the host
+6. Serialize ProjectConfig to config dir
+7. Run setup-home.sh in a one-shot container to set up /project/home:
    docker run --rm \
-     -v claudine_<project>:/workspace \
-     -v <ssh_key>:/host-config/ssh_key:ro \
-     -v ~/.gitconfig:/host-config/gitconfig:ro \
+     -v claudine_<project>:/project \
+     -v <setup-home.sh>:/tmp/setup-home.sh:ro \
+     -v ~/.gitconfig:/tmp/host-gitconfig:ro \
+     -v <ssh_key>:/tmp/host-ssh-key:ro \
+     -v ~/.claude:/tmp/host-claude:ro \
+     -v ~/.claude.json:/tmp/host-claude-json:ro \
+     --entrypoint bash \
      claudine:latest \
-     git clone <url> /workspace/project/<dir>
+     /tmp/setup-home.sh
+8. For each repo, clone into the volume:
+   docker run --rm \
+     -v claudine_<project>:/project \
+     -e HOME=/project/home \
+     claudine:latest \
+     git clone [--branch <branch>] <url> /project/<dir>
 ```
 
-The clone runs as the `claude` user (entrypoint drops privileges via gosu before executing the command), so all files in `/workspace/project/<dir>` have correct ownership from the start. No post-hoc chown needed.
+The clone runs as the `claude` user (entrypoint drops privileges via gosu before executing the command), so all files in `/project/<dir>` have correct ownership from the start. No post-hoc chown needed.
 
-### Run Flow (`claudine run <project>`)
+### Run Flow (`claudine run <project> [repo]`)
 
 ```
 1. Verify volume exists (else error: "run init first")
-2. If container already running, error (use "claudine shell <project>" for a second terminal)
-3. Deserialize project config.toml
-4. docker::build_run_args() assembles:
-   --rm -it
-   --name claudine_<project>
-   -v claudine_<project>:/workspace
-   -v /var/run/docker.sock:/var/run/docker.sock
-   -v ~/.gitconfig:/host-config/gitconfig:ro        (if exists)
-   -v <ssh_key>:/host-config/ssh_key:ro             (if configured)
-   -v ~/.claude:/host-config/claude-credentials:ro  (if exists)
-   -w /project
-   -e HOME=/home
-   --shm-size=256m
-   + ANTHROPIC_API_KEY passthrough (if set)
-5. Add -it flags only if stdin is a TTY (std::io::stdin().is_terminal())
-6. Command::new("docker").args(...).exec() (replaces process)
+2. If container already running → docker exec into it
+3. Otherwise, start a new named container:
+   docker run --rm
+     --name claudine_<project>
+     -v claudine_<project>:/project
+     -v /var/run/docker.sock:/var/run/docker.sock
+     -v ~/claudine-share/<project>/:/share   (if exists)
+     -w /project/<repo>                      (or /project if no repo specified)
+     -e HOME=/project/home
+     --shm-size=256m
+     + ANTHROPIC_API_KEY passthrough (if set)
+     + -it flags only if stdin is a TTY
+     claudine:latest
+     claude
 ```
+
+No host config bind mounts at run time. All credentials and configs were copied into the volume during init.
 
 ## Design Decisions
 
@@ -224,6 +244,13 @@ The clone runs as the `claude` user (entrypoint drops privileges via gosu before
 ### Ephemeral Containers
 Containers run with `--rm`. All persistent state lives in the Docker volume. This eliminates container lifecycle management — no `docker stop`/`start`, no orphans after crashes.
 
+### Container Reuse
+The `--name claudine_<project>` flag identifies the container for a project. When a container is already running:
+- **`claudine run <project>`** — detects the running container and uses `docker exec` to attach. This allows multiple sessions (e.g., Claude in one terminal, shell in another) without conflicting.
+- **`claudine shell <project>`** — same behavior, uses `docker exec` to attach a new bash session.
+
+The first `run` or `shell` command starts the named container. Subsequent commands exec into the existing one. Both set the working directory and environment variables on the exec call to match the requested repo context.
+
 ### Docker-outside-of-Docker (DooD)
 The host Docker socket is bind-mounted into the container, allowing Claude to run Docker commands that execute on the host daemon. The entrypoint detects the socket's GID and adds the `claude` user to the matching group at runtime.
 
@@ -234,28 +261,27 @@ This enables a key capability: **Claude inside a claudine container can manage o
 
 Because the socket is the **host daemon's socket**, all containers launched from inside claudine are siblings (not nested). They share the host's Docker engine, network, and volume namespace.
 
-### Config Copying vs Bind Mounting
-Host configs are bind-mounted read-only to `/host-config/`, then **copied** into the volume's `home/` directory by the entrypoint. This gives us:
-- **Fresh configs every run** (from the host bind mount)
+### Init-Time Setup vs Runtime Copying
+Host configs (gitconfig, SSH key, Claude credentials) are copied into the volume once during `claudine init` by `setup-home.sh`, not on every container start. This means:
+- **No host bind mounts at run time** — the container only mounts the volume, Docker socket, and share directory
 - **Writable copies** inside the container (tools can modify their own config)
 - **Persistence** across container restarts (volume survives `--rm`)
+- To update credentials after init, re-run `claudine init` (it prompts before overwriting)
 
 ### Authentication Forwarding
 Three auth mechanisms are forwarded:
-1. **Claude OAuth** (default): `~/.claude/` directory is bind-mounted, credentials copied into the volume
-2. **API key**: `ANTHROPIC_API_KEY` environment variable is passed through to the container
-3. **SSH key**: A single SSH key (selected during `claudine init`) is mounted and configured as the default identity. Only the required key is exposed — no other keys from the host `~/.ssh/` directory are accessible inside the container.
+1. **Claude OAuth** (default): `~/.claude/` directory is copied into the volume during init
+2. **API key**: `ANTHROPIC_API_KEY` environment variable is passed through to the container at run time
+3. **SSH key**: A single SSH key (selected during `claudine init`) is copied into the volume and configured as the default identity. Only the required key is exposed — no other keys from the host `~/.ssh/` directory are accessible inside the container.
+
+### Shared Directory Mount
+Each project gets a host-side shared directory at `~/claudine-share/<project>/`, mounted into the container at `/share`. This provides a simple mechanism for transferring files between the host and container without going through git. The directory is created automatically during `claudine init`.
 
 ### TTY Detection
-The CLI checks `std::io::stdin().is_terminal()` before adding `-it` flags to `docker run`. Interactive terminal sessions get full TTY allocation; piped or scripted usage (e.g., `echo "fix the bug" | claudine run myproject`) runs without TTY flags so Docker doesn't error on missing terminal.
+The CLI checks `std::io::stdin().is_terminal()` before adding `-it` flags to `docker run` and `docker exec`. Interactive terminal sessions get full TTY allocation; piped or scripted usage (e.g., `echo "fix the bug" | claudine run myproject`) runs without TTY flags so Docker doesn't error on missing terminal.
 
 ### Permission Skip
 The `--dangerously-skip-permissions` flag is set via a bash alias. This is appropriate because the container is already an isolation boundary — interactive permission prompts would be redundant.
-
-### Container Reuse
-The `--name claudine_<project>` flag identifies the container for a project. Behavior when a container is already running:
-- **`claudine shell <project>`** — detects the running container and uses `docker exec` to attach a new bash session. Supports the common workflow of Claude in one terminal and a shell in another.
-- **`claudine run <project>`** — refuses with a clear error. Two Claude instances in the same workspace would conflict.
 
 ## Extending the Image
 
@@ -292,5 +318,6 @@ name = "claudine-node:latest"
 | `src/project.rs` | Project name validation, volume/container helpers |
 | `src/repo.rs` | Repo add/remove/list subcommands |
 | `Dockerfile` | Generic container image definition |
-| `entrypoint.sh` | Runtime setup, symlinks, SSH key setup, privilege drop |
+| `entrypoint.sh` | Docker socket GID detection, privilege drop via gosu |
+| `setup-home.sh` | Home directory setup script (configs, SSH, credentials, ward hooks) |
 | `docs/architecture.md` | This document |

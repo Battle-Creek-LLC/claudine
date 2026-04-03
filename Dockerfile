@@ -54,8 +54,7 @@ RUN useradd -d /project/home -s /bin/bash claude
 
 # Add alias and ensure ~/.local/bin is on PATH for all users
 RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> /etc/bash.bashrc \
-    && echo 'export PATH="$HOME/.local/bin:$PATH"' >> /etc/bash.bashrc \
-    && echo 'export PATH="$HOME/.local/bin:$PATH"' >> /etc/profile.d/local-bin.sh
+    && echo 'export PATH="$HOME/.local/bin:$PATH"' >> /etc/bash.bashrc
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh

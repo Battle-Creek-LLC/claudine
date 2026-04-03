@@ -124,7 +124,7 @@ pub fn cmd_init(name: &str) -> anyhow::Result<()> {
 
     // Clone each repo
     for repo in &repos {
-        clone_repo(name, &image, repo, ssh_key.as_deref())?;
+        clone_repo(name, &image, repo)?;
     }
 
     println!("Project '{}' initialized successfully.", name);
@@ -203,7 +203,6 @@ pub fn clone_repo(
     project_name: &str,
     image: &str,
     repo: &config::RepoConfig,
-    _ssh_key: Option<&str>,
 ) -> anyhow::Result<()> {
     let volume = project::volume_name(project_name);
 
