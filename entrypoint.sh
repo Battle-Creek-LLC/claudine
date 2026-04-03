@@ -40,17 +40,17 @@ SSHEOF
         chown claude:claude /workspace/home/.ssh/config
     fi
 
-    # Claude credentials
+    # Claude credentials directory (~/.claude/)
     if [ -d /host-config/claude-credentials ]; then
         mkdir -p /workspace/home/.claude
         cp -a /host-config/claude-credentials/. /workspace/home/.claude/
         chown -R claude:claude /workspace/home/.claude
+    fi
 
-        # If .claude.json exists inside the credentials dir, also place it at $HOME/.claude.json
-        if [ -f /host-config/claude-credentials/.claude.json ]; then
-            cp /host-config/claude-credentials/.claude.json /workspace/home/.claude.json
-            chown claude:claude /workspace/home/.claude.json
-        fi
+    # Claude config file (~/.claude.json) — may be separate from ~/.claude/
+    if [ -f /host-config/claude-json ]; then
+        cp /host-config/claude-json /workspace/home/.claude.json
+        chown claude:claude /workspace/home/.claude.json
     fi
 fi
 

@@ -331,6 +331,13 @@ pub(crate) fn build_run_args(project: &str, image: &str, ssh_key: Option<&str>) 
                 claude_dir.display()
             ));
         }
+
+        // Mount ~/.claude.json if it exists (separate from ~/.claude/ dir)
+        let claude_json = home.join(".claude.json");
+        if claude_json.exists() {
+            args.push("-v".to_string());
+            args.push(format!("{}:/host-config/claude-json:ro", claude_json.display()));
+        }
     }
 
     // Mount the specific SSH key if configured
