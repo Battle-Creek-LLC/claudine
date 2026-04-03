@@ -21,11 +21,10 @@ pub enum Command {
         project: String,
 
         /// Repository directory to use as working directory
-        #[arg(short, long)]
         repo: Option<String>,
 
-        /// Additional arguments passed through to Claude
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        /// Additional arguments passed through to Claude (after --)
+        #[arg(last = true)]
         args: Vec<String>,
     },
 
@@ -35,7 +34,6 @@ pub enum Command {
         project: String,
 
         /// Repository directory to use as working directory
-        #[arg(short, long)]
         repo: Option<String>,
     },
 
