@@ -35,6 +35,19 @@ RUN curl -fsSL https://claude.ai/install.sh | bash \
     && cp /root/.local/bin/claude /usr/local/bin/claude \
     && chmod 755 /usr/local/bin/claude
 
+# Install ward (PII/secrets scanner for Claude Code hooks)
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && . /root/.cargo/env \
+    && git clone https://github.com/jstockdi/ward.git /tmp/ward \
+    && cd /tmp/ward \
+    && cargo build --release \
+    && cp target/release/ward /usr/local/bin/ward \
+    && chmod 755 /usr/local/bin/ward \
+    && rm -rf /tmp/ward /root/.cargo /root/.rustup \
+    && apt-get purge -y build-essential && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 # Remove default /home so the entrypoint can symlink it to the persistent volume
 RUN rm -rf /home
 

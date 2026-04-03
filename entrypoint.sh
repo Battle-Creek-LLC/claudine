@@ -54,6 +54,67 @@ SSHEOF
     fi
 fi
 
+# Write container-specific Claude settings (overrides host settings)
+mkdir -p /workspace/home/.claude
+cat > /workspace/home/.claude/settings.json <<'SETTINGS'
+{
+  "permissions": {
+    "allow": [
+      "Bash(aws:*)",
+      "Bash(docker:*)",
+      "Bash(find:*)",
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(ls:*)",
+      "Bash(npm:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "WebSearch"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ward pii",
+            "timeout": 5,
+            "statusMessage": "Scanning for PII..."
+          },
+          {
+            "type": "command",
+            "command": "ward leaks",
+            "timeout": 5,
+            "statusMessage": "Scanning for secrets..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ward pii",
+            "timeout": 5,
+            "statusMessage": "Scanning for PII..."
+          },
+          {
+            "type": "command",
+            "command": "ward leaks",
+            "timeout": 5,
+            "statusMessage": "Scanning for secrets..."
+          }
+        ]
+      }
+    ]
+  }
+}
+SETTINGS
+chown claude:claude /workspace/home/.claude/settings.json
+
 # Mark all directories as safe for git
 gosu claude git config --global --add safe.directory '*'
 
