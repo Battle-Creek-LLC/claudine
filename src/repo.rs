@@ -61,7 +61,7 @@ fn repo_add(
     };
 
     // Clone the repo into the volume
-    init::clone_repo(project_name, &image, &repo)?;
+    init::clone_repo(project_name, &image, &repo, project_config.ssh_key.as_deref())?;
 
     // Update and save config
     project_config.repos.push(repo);

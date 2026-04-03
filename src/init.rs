@@ -28,6 +28,23 @@ pub fn cmd_init(name: &str) -> anyhow::Result<()> {
         }
     }
 
+    // Prompt for SSH key
+    let ssh_key_input: String = Input::new()
+        .with_prompt("SSH key path (leave empty for HTTPS repos)")
+        .default(String::new())
+        .show_default(false)
+        .interact_text()?;
+
+    let ssh_key = if ssh_key_input.trim().is_empty() {
+        None
+    } else {
+        let path = PathBuf::from(ssh_key_input.trim());
+        if !path.exists() {
+            anyhow::bail!("SSH key not found: {}", path.display());
+        }
+        Some(path.display().to_string())
+    };
+
     // Collect repos in a loop
     let mut repos: Vec<config::RepoConfig> = Vec::new();
 
@@ -84,6 +101,7 @@ pub fn cmd_init(name: &str) -> anyhow::Result<()> {
     // Build and save project config
     let project_config = config::ProjectConfig {
         repos: repos.clone(),
+        ssh_key: ssh_key.clone(),
         image: None,
     };
     config::save_project(name, &project_config)?;
@@ -94,7 +112,7 @@ pub fn cmd_init(name: &str) -> anyhow::Result<()> {
 
     // Clone each repo
     for repo in &repos {
-        clone_repo(name, &image, repo)?;
+        clone_repo(name, &image, repo, ssh_key.as_deref())?;
     }
 
     println!("Project '{}' initialized successfully.", name);
@@ -106,6 +124,7 @@ pub fn clone_repo(
     project_name: &str,
     image: &str,
     repo: &config::RepoConfig,
+    ssh_key: Option<&str>,
 ) -> anyhow::Result<()> {
     let mut args: Vec<String> = vec![
         "run".to_string(),
@@ -125,12 +144,10 @@ pub fn clone_repo(
         }
     }
 
-    // Mount host SSH directory if it exists
-    if let Some(ssh_path) = host_ssh_path() {
-        if ssh_path.exists() {
-            args.push("-v".to_string());
-            args.push(format!("{}:/host-config/ssh:ro", ssh_path.display()));
-        }
+    // Mount the specific SSH key if configured
+    if let Some(key_path) = ssh_key {
+        args.push("-v".to_string());
+        args.push(format!("{}:/host-config/ssh_key:ro", key_path));
     }
 
     // Image name
@@ -172,9 +189,4 @@ pub fn clone_repo(
 /// Return the path to the host's ~/.gitconfig file, if the home directory is known.
 fn host_gitconfig_path() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".gitconfig"))
-}
-
-/// Return the path to the host's ~/.ssh directory, if the home directory is known.
-fn host_ssh_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|home| home.join(".ssh"))
 }

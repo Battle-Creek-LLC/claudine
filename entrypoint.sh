@@ -22,13 +22,22 @@ if [ -d /host-config ]; then
         chown claude:claude /workspace/home/.gitconfig
     fi
 
-    # SSH keys and config
-    if [ -d /host-config/ssh ]; then
+    # SSH key — single key file for security isolation
+    if [ -f /host-config/ssh_key ]; then
         mkdir -p /workspace/home/.ssh
-        cp -a /host-config/ssh/. /workspace/home/.ssh/
+        cp /host-config/ssh_key /workspace/home/.ssh/id_key
         chmod 700 /workspace/home/.ssh
-        find /workspace/home/.ssh -type f -exec chmod 600 {} +
+        chmod 600 /workspace/home/.ssh/id_key
         chown -R claude:claude /workspace/home/.ssh
+        # Write minimal SSH config to use this key by default
+        cat > /workspace/home/.ssh/config <<SSHEOF
+Host *
+    IdentityFile /home/.ssh/id_key
+    IdentitiesOnly yes
+    StrictHostKeyChecking accept-new
+SSHEOF
+        chmod 600 /workspace/home/.ssh/config
+        chown claude:claude /workspace/home/.ssh/config
     fi
 
     # Claude credentials

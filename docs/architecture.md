@@ -8,19 +8,20 @@ Claudine is a standalone CLI tool that runs Claude Code inside isolated Docker c
 Host                                    Container (claudine:latest)
 ────────────────────────                ────────────────────────────────
 ~/.gitconfig ──────────────┐
-~/.ssh/ ───────────────────┤ bind-mount   /host-config/ (read-only)
+~/.ssh/<key> ──────────────┤ bind-mount   /host-config/ (read-only)
 ~/.claude/ ────────────────┘    (ro)           │
                                           entrypoint.sh copies
                                           into /workspace/home/
                                                │
-Docker volume                                  │
-  claudine_<project> ──────── mounted ──► /workspace/
-  ├── home/                                ├── home/    ($HOME)
+Docker volume                                  │         Symlinks
+  claudine_<project> ──────── mounted ──► /workspace/    ─────────
+  ├── home/                                ├── home/  ◄── /home ($HOME)
   │   ├── .claude/                         │   ├── .claude/
-  │   ├── .ssh/                            │   ├── .ssh/
+  │   ├── .ssh/id_key                      │   ├── .ssh/id_key
   │   └── .gitconfig                       │   └── .gitconfig
-  └── project/                             └── project/ (workdir)
-      └── <git clone>                          └── <git clone>
+  └── project/                             └── project/ ◄── /project (workdir)
+      ├── <repo1>/                             ├── <repo1>/
+      └── <repo2>/                             └── <repo2>/
 
 /var/run/docker.sock ──────── mounted ──► /var/run/docker.sock (DooD)
 ```
@@ -39,13 +40,16 @@ Rust binary built with `clap` for argument parsing and `serde` + `toml` for conf
 
 **Command structure (clap subcommands):**
 ```
-claudine init <project>       →  create volume, clone repo
-claudine run <project>        →  run Claude Code (default action)
-claudine shell <project>      →  open bash shell
-claudine destroy <project>    →  remove volume + config
-claudine build                →  build/rebuild the Docker image
-claudine list                 →  list projects and their status
-claudine completions <shell>  →  generate shell completions
+claudine init <project>                →  create volume, clone repo(s)
+claudine run <project>                 →  run Claude Code (default action)
+claudine shell <project>               →  open bash shell
+claudine destroy <project>             →  remove volume + config
+claudine repo add <project> <url>      →  add a repo to a project
+claudine repo remove <project> <dir>   →  remove a repo from a project
+claudine repo list <project>           →  list repos in a project
+claudine build                         →  build/rebuild the Docker image
+claudine list                          →  list projects and their status
+claudine completions <shell>           →  generate shell completions
 ```
 
 Project name is always a positional argument to a subcommand — standard clap derive pattern, no disambiguation hacks.
@@ -63,10 +67,11 @@ const ENTRYPOINT: &str = include_str!("../entrypoint.sh");
 src/
 ├── main.rs          # clap app definition, command routing
 ├── cli.rs           # clap derive structs
-├── config.rs        # TOML config loading/saving, defaults
+├── config.rs        # TOML config loading/saving, defaults, migration
 ├── docker.rs        # Docker command assembly, execution, and embedded build
-├── init.rs          # interactive project init flow
-└── project.rs       # project validation, volume/container helpers
+├── init.rs          # interactive project init flow (multi-repo)
+├── project.rs       # project validation, volume/container helpers
+└── repo.rs          # repo add/remove/list subcommands
 ```
 
 ### Docker Image (`Dockerfile`)
@@ -89,16 +94,19 @@ The image contains no project-specific tooling. Additional tools can be layered 
 Runs as root, performs runtime setup, then drops to the `claude` user via `gosu`.
 
 **Sequence:**
-1. Ensure `/workspace/home` and `/workspace/project` exist with correct ownership (non-recursive chown on top-level dirs; only recursive on `home/` which is small)
-2. Copy configs from `/host-config/` bind mounts into `/workspace/home/`
+1. Ensure `/workspace/home` and `/workspace/project` exist with correct ownership
+2. Create root-level symlinks: `/home` → `/workspace/home`, `/project` → `/workspace/project`
+3. Copy configs from `/host-config/` bind mounts into `/workspace/home/`
    - `gitconfig` → `.gitconfig`
-   - `ssh/` → `.ssh/` (with correct permissions: 700/600)
+   - `ssh_key` → `.ssh/id_key` (single key file, 600 perms, with auto-generated SSH config)
    - `claude-credentials/` → `.claude/` and `.claude.json`
-3. Set `git config --global safe.directory '*'`
-4. Detect Docker socket GID, add `claude` user to matching group
-5. `exec gosu claude "$@"` (or `bash` if no args)
+4. Set `git config --global safe.directory '*'`
+5. Detect Docker socket GID, add `claude` user to matching group
+6. `exec gosu claude "$@"` (or `bash` if no args)
 
 Configs are **copied** (not symlinked) because the bind mounts are read-only but tools like git and ssh may attempt writes to these paths.
+
+**SSH key isolation:** Only a single SSH key (selected during `claudine init`) is mounted into the container. The entrypoint writes a minimal `~/.ssh/config` that uses this key for all hosts. This limits the container's access to only the key needed for the project's repositories.
 
 ### Config (`~/.config/claudine/`)
 
@@ -118,12 +126,18 @@ name = "claudine:latest"
 
 **Project config** (`projects/<project>/config.toml`):
 ```toml
-[project]
-repo_url = "git@github.com:user/repo.git"
+ssh_key = "/Users/you/.ssh/my_key"
+
+[[repos]]
+url = "git@github.com:user/frontend.git"
+dir = "frontend"
 branch = "main"
 
-[image]
-# Override image for this project
+[[repos]]
+url = "git@github.com:user/backend.git"
+dir = "backend"
+
+# [image]
 # name = "claudine-node:latest"
 ```
 
@@ -136,7 +150,8 @@ struct GlobalConfig {
 
 #[derive(Deserialize, Serialize)]
 struct ProjectConfig {
-    project: ProjectInfo,
+    repos: Vec<RepoConfig>,
+    ssh_key: Option<String>,
     image: Option<ImageConfig>,
 }
 
@@ -146,8 +161,9 @@ struct ImageConfig {
 }
 
 #[derive(Deserialize, Serialize)]
-struct ProjectInfo {
-    repo_url: String,
+struct RepoConfig {
+    url: String,
+    dir: String,
     branch: Option<String>,
 }
 ```
@@ -158,20 +174,20 @@ struct ProjectInfo {
 
 ```
 1. Validate project name (alphanumeric, hyphens, underscores)
-2. dialoguer prompts for repo URL and optional branch
-3. docker volume create claudine_<project>
-4. Serialize ProjectConfig to ~/.config/claudine/projects/<project>/config.toml
-5. Run container through the entrypoint (sets up claude user, copies
-   SSH keys, configures Docker socket group), then clone:
+2. Prompt for SSH key path (optional — leave empty for HTTPS repos)
+3. Loop: prompt for repo URL, directory name, branch (repeat until empty URL)
+4. docker volume create claudine_<project>
+5. Serialize ProjectConfig to config dir
+6. For each repo, run container through the entrypoint then clone:
    docker run --rm \
      -v claudine_<project>:/workspace \
-     -v ~/.ssh:/host-config/ssh:ro \
+     -v <ssh_key>:/host-config/ssh_key:ro \
      -v ~/.gitconfig:/host-config/gitconfig:ro \
      claudine:latest \
-     git clone <url> /workspace/project
+     git clone <url> /workspace/project/<dir>
 ```
 
-The clone runs as the `claude` user (entrypoint drops privileges via gosu before executing the command), so all files in `/workspace/project` have correct ownership from the start. No post-hoc chown needed.
+The clone runs as the `claude` user (entrypoint drops privileges via gosu before executing the command), so all files in `/workspace/project/<dir>` have correct ownership from the start. No post-hoc chown needed.
 
 ### Run Flow (`claudine run <project>`)
 
@@ -185,10 +201,10 @@ The clone runs as the `claude` user (entrypoint drops privileges via gosu before
    -v claudine_<project>:/workspace
    -v /var/run/docker.sock:/var/run/docker.sock
    -v ~/.gitconfig:/host-config/gitconfig:ro        (if exists)
-   -v ~/.ssh:/host-config/ssh:ro                    (if exists)
+   -v <ssh_key>:/host-config/ssh_key:ro             (if configured)
    -v ~/.claude:/host-config/claude-credentials:ro  (if exists)
-   -w /workspace/project
-   -e HOME=/workspace/home
+   -w /project
+   -e HOME=/home
    --shm-size=256m
    + ANTHROPIC_API_KEY passthrough (if set)
 5. Add -it flags only if stdin is a TTY (std::io::stdin().is_terminal())
@@ -225,9 +241,10 @@ Host configs are bind-mounted read-only to `/host-config/`, then **copied** into
 - **Persistence** across container restarts (volume survives `--rm`)
 
 ### Authentication Forwarding
-Two auth paths are supported:
-1. **OAuth** (default): `~/.claude/` directory is bind-mounted, credentials copied into the volume
+Three auth mechanisms are forwarded:
+1. **Claude OAuth** (default): `~/.claude/` directory is bind-mounted, credentials copied into the volume
 2. **API key**: `ANTHROPIC_API_KEY` environment variable is passed through to the container
+3. **SSH key**: A single SSH key (selected during `claudine init`) is mounted and configured as the default identity. Only the required key is exposed — no other keys from the host `~/.ssh/` directory are accessible inside the container.
 
 ### TTY Detection
 The CLI checks `std::io::stdin().is_terminal()` before adding `-it` flags to `docker run`. Interactive terminal sessions get full TTY allocation; piped or scripted usage (e.g., `echo "fix the bug" | claudine run myproject`) runs without TTY flags so Docker doesn't error on missing terminal.
@@ -269,10 +286,11 @@ name = "claudine-node:latest"
 | `Cargo.toml` | Rust dependencies and project metadata |
 | `src/main.rs` | Clap app definition, command routing |
 | `src/cli.rs` | Clap derive structs for all commands |
-| `src/config.rs` | TOML config loading/saving/defaults |
+| `src/config.rs` | TOML config loading/saving/defaults/migration |
 | `src/docker.rs` | Docker command assembly and execution |
-| `src/init.rs` | Interactive project init flow |
+| `src/init.rs` | Interactive project init flow (multi-repo, SSH key) |
 | `src/project.rs` | Project name validation, volume/container helpers |
+| `src/repo.rs` | Repo add/remove/list subcommands |
 | `Dockerfile` | Generic container image definition |
-| `entrypoint.sh` | Runtime setup + privilege drop |
+| `entrypoint.sh` | Runtime setup, symlinks, SSH key setup, privilege drop |
 | `docs/architecture.md` | This document |

@@ -11,6 +11,7 @@ pub struct GlobalConfig {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ProjectConfig {
     pub repos: Vec<RepoConfig>,
+    pub ssh_key: Option<String>,
     pub image: Option<ImageConfig>,
 }
 
@@ -93,6 +94,7 @@ fn migrate_project_config(raw: &str) -> Option<ProjectConfig> {
             dir,
             branch: legacy.project.branch,
         }],
+        ssh_key: None,
         image: legacy.image,
     })
 }
@@ -237,6 +239,7 @@ mod tests {
                 dir: "repo".to_string(),
                 branch: None,
             }],
+            ssh_key: None,
             image: Some(ImageConfig {
                 name: "custom:latest".to_string(),
             }),
@@ -253,6 +256,7 @@ mod tests {
                 dir: "repo".to_string(),
                 branch: None,
             }],
+            ssh_key: None,
             image: None,
         };
         assert_eq!(resolve_image(&project, &global), "claudine:latest");
@@ -273,6 +277,7 @@ mod tests {
                     branch: None,
                 },
             ],
+            ssh_key: Some("/Users/test/.ssh/id_ed25519".to_string()),
             image: None,
         };
         let serialized = toml::to_string_pretty(&config).unwrap();
