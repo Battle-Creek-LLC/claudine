@@ -91,9 +91,10 @@ cat > /project/home/.claude/settings.json <<'SETTINGS'
 SETTINGS
 chown claude:claude /project/home/.claude/settings.json
 
-# Ensure claude CLI is available at ~/.local/bin (expected by native install method)
+# Install claude CLI at ~/.local/bin (where Claude Code expects to find itself)
 mkdir -p /project/home/.local/bin
-ln -sf /usr/local/bin/claude /project/home/.local/bin/claude
+cp /usr/local/bin/claude /project/home/.local/bin/claude
+chmod 755 /project/home/.local/bin/claude
 chown -R claude:claude /project/home/.local
 
 # git safe directory
