@@ -66,9 +66,28 @@ pub fn cmd_build() -> anyhow::Result<()> {
 
 /// Launch Claude Code in a container for the given project.
 ///
-/// Validates the project state, assembles Docker run arguments, and replaces the
-/// current process with the Docker container via `exec()`.
+/// If the project container is already running, attaches via `docker exec`.
+/// Otherwise, starts a new named container. Uses `exec()` to replace the process.
 pub fn cmd_run(project: &str, repo: Option<&str>, extra_args: &[String]) -> anyhow::Result<()> {
+    validate_project(project, repo)?;
+
+    let mut container_cmd: Vec<String> = vec!["claude".to_string()];
+    container_cmd.extend_from_slice(extra_args);
+
+    exec_in_project(project, repo, &container_cmd)
+}
+
+/// Open an interactive shell in a project's container.
+///
+/// If the project container is already running, attaches via `docker exec`.
+/// Otherwise, starts a new named container with bash.
+pub fn cmd_shell(project: &str, repo: Option<&str>) -> anyhow::Result<()> {
+    validate_project(project, repo)?;
+    exec_in_project(project, repo, &["bash".to_string()])
+}
+
+/// Validate project exists and repo is valid.
+fn validate_project(project: &str, repo: Option<&str>) -> anyhow::Result<()> {
     project::validate_name(project)?;
 
     if !project::volume_exists(project)? {
@@ -79,12 +98,8 @@ pub fn cmd_run(project: &str, repo: Option<&str>, extra_args: &[String]) -> anyh
         );
     }
 
-    let project_config = config::load_project(project)?;
-    let global_config = config::load_global()?;
-    let image = config::resolve_image(&project_config, &global_config);
-
-    // Validate repo dir exists in config if specified
     if let Some(r) = repo {
+        let project_config = config::load_project(project)?;
         if !project_config.repos.iter().any(|rc| rc.dir == r) {
             let available: Vec<&str> = project_config.repos.iter().map(|rc| rc.dir.as_str()).collect();
             anyhow::bail!(
@@ -94,38 +109,38 @@ pub fn cmd_run(project: &str, repo: Option<&str>, extra_args: &[String]) -> anyh
         }
     }
 
-    let docker_args = build_run_args(project, &image, repo);
-
-    // Build the full command: docker <run_args> <image> claude [extra_args...]
-    let mut cmd = Command::new("docker");
-    cmd.args(&docker_args);
-
-    // Command to run inside the container
-    cmd.arg("claude");
-    cmd.args(extra_args);
-
-    // Replace the current process with Docker. This call only returns on error.
-    use std::os::unix::process::CommandExt;
-    let err = cmd.exec();
-    Err(anyhow::anyhow!("Failed to exec docker: {}", err))
+    Ok(())
 }
 
-/// Open an interactive shell in a project's container.
-///
-/// If the container is already running (e.g., Claude is active), attaches a new
-/// bash session via `docker exec`. Otherwise, starts a fresh container with the
-/// entrypoint's default bash shell.
-pub fn cmd_shell(project: &str, repo: Option<&str>) -> anyhow::Result<()> {
-    project::validate_name(project)?;
+/// Execute a command in the project container.
+/// If the container is already running, uses `docker exec`.
+/// Otherwise, starts a new named container with `docker run`.
+fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) -> anyhow::Result<()> {
+    use std::os::unix::process::CommandExt;
 
-    if !project::volume_exists(project)? {
-        anyhow::bail!(
-            "Project '{}' is not initialized. Run 'claudine init {}' first.",
-            project,
-            project
-        );
+    let workdir = match repo {
+        Some(r) => format!("/project/{}", r),
+        None => "/project".to_string(),
+    };
+
+    if project::container_running(project)? {
+        let mut cmd = Command::new("docker");
+        cmd.arg("exec");
+
+        if std::io::stdin().is_terminal() {
+            cmd.arg("-it");
+        }
+
+        cmd.args(["-w", &workdir]);
+        cmd.args(["-e", "HOME=/project/home"]);
+        cmd.arg(project::container_name(project));
+        cmd.args(container_cmd);
+
+        let err = cmd.exec();
+        return Err(anyhow::anyhow!("Failed to exec docker: {}", err));
     }
 
+    // No running container — start a new one
     let project_config = config::load_project(project)?;
     let global_config = config::load_global()?;
     let image = config::resolve_image(&project_config, &global_config);
@@ -134,8 +149,8 @@ pub fn cmd_shell(project: &str, repo: Option<&str>) -> anyhow::Result<()> {
 
     let mut cmd = Command::new("docker");
     cmd.args(&docker_args);
+    cmd.args(container_cmd);
 
-    use std::os::unix::process::CommandExt;
     let err = cmd.exec();
     Err(anyhow::anyhow!("Failed to exec docker: {}", err))
 }
@@ -290,6 +305,8 @@ pub(crate) fn build_run_args(project: &str, image: &str, repo: Option<&str>) -> 
     let mut args = vec![
         "run".to_string(),
         "--rm".to_string(),
+        "--name".to_string(),
+        project::container_name(project),
         "-v".to_string(),
         format!("{}:/project", project::volume_name(project)),
         "-v".to_string(),
