@@ -89,7 +89,7 @@ cat > /project/home/.claude/settings.json <<'SETTINGS'
   }
 }
 SETTINGS
-chown claude:claude /project/home/.claude/settings.json
+chown -R claude:claude /project/home/.claude
 
 # Install claude CLI at ~/.local/bin (where Claude Code expects to find itself)
 mkdir -p /project/home/.local/bin
