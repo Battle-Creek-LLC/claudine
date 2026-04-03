@@ -333,12 +333,6 @@ pub(crate) fn build_run_args(project: &str, image: &str, repo: Option<&str>) -> 
 
     args.push("--shm-size=256m".to_string());
 
-    // Pass through ANTHROPIC_API_KEY if set in the host environment
-    if std::env::var("ANTHROPIC_API_KEY").is_ok() {
-        args.push("-e".to_string());
-        args.push("ANTHROPIC_API_KEY".to_string());
-    }
-
     // Only allocate a TTY if stdin is a terminal
     if std::io::stdin().is_terminal() {
         args.push("-it".to_string());

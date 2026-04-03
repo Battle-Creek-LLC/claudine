@@ -1,6 +1,7 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -106,6 +107,24 @@ fn migrate_project_config(raw: &str) -> Option<ProjectConfig> {
     })
 }
 
+/// Create a directory with 700 permissions (owner only).
+fn create_private_dir(path: &std::path::Path) -> anyhow::Result<()> {
+    fs::create_dir_all(path)
+        .with_context(|| format!("Failed to create directory: {}", path.display()))?;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
+        .with_context(|| format!("Failed to set permissions on: {}", path.display()))?;
+    Ok(())
+}
+
+/// Write a file with 600 permissions (owner read/write only).
+fn write_private_file(path: &std::path::Path, content: &str) -> anyhow::Result<()> {
+    fs::write(path, content)
+        .with_context(|| format!("Failed to write: {}", path.display()))?;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+        .with_context(|| format!("Failed to set permissions on: {}", path.display()))?;
+    Ok(())
+}
+
 /// Return the base configuration directory: `~/.config/claudine/`.
 pub fn config_dir() -> anyhow::Result<PathBuf> {
     let base = dirs::config_dir()
@@ -120,14 +139,12 @@ pub fn load_global() -> anyhow::Result<GlobalConfig> {
     let path = dir.join("config.toml");
 
     if !path.exists() {
-        fs::create_dir_all(&dir)
-            .with_context(|| format!("Failed to create config directory: {}", dir.display()))?;
+        create_private_dir(&dir)?;
 
         let default = GlobalConfig::default();
         let content = toml::to_string_pretty(&default)
             .context("Failed to serialize default global config")?;
-        fs::write(&path, &content)
-            .with_context(|| format!("Failed to write default config: {}", path.display()))?;
+        write_private_file(&path, &content)?;
 
         return Ok(default);
     }
@@ -178,14 +195,12 @@ pub fn load_project(name: &str) -> anyhow::Result<ProjectConfig> {
 /// Creates the project directory if it does not exist.
 pub fn save_project(name: &str, config: &ProjectConfig) -> anyhow::Result<()> {
     let dir = config_dir()?.join("projects").join(name);
-    fs::create_dir_all(&dir)
-        .with_context(|| format!("Failed to create project directory: {}", dir.display()))?;
+    create_private_dir(&dir)?;
 
     let path = dir.join("config.toml");
     let content =
         toml::to_string_pretty(config).context("Failed to serialize project config")?;
-    fs::write(&path, &content)
-        .with_context(|| format!("Failed to write project config: {}", path.display()))?;
+    write_private_file(&path, &content)?;
 
     Ok(())
 }
