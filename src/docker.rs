@@ -91,7 +91,7 @@ pub fn cmd_run(project: &str, extra_args: &[String]) -> anyhow::Result<()> {
     let global_config = config::load_global()?;
     let image = config::resolve_image(&project_config, &global_config);
 
-    let docker_args = build_run_args(project, &image, project_config.ssh_key.as_deref());
+    let docker_args = build_run_args(project, &image);
 
     // Build the full command: docker <run_args> <image> claude [extra_args...]
     let mut cmd = Command::new("docker");
@@ -145,7 +145,7 @@ pub fn cmd_shell(project: &str) -> anyhow::Result<()> {
     let global_config = config::load_global()?;
     let image = config::resolve_image(&project_config, &global_config);
 
-    let docker_args = build_run_args(project, &image, project_config.ssh_key.as_deref());
+    let docker_args = build_run_args(project, &image);
 
     let mut cmd = Command::new("docker");
     cmd.args(&docker_args);
@@ -302,7 +302,7 @@ pub fn cmd_list() -> anyhow::Result<()> {
 ///
 /// This function is shared between `cmd_run` and `cmd_shell` to ensure
 /// consistent container configuration.
-pub(crate) fn build_run_args(project: &str, image: &str, ssh_key: Option<&str>) -> Vec<String> {
+pub(crate) fn build_run_args(project: &str, image: &str) -> Vec<String> {
     let mut args = vec![
         "run".to_string(),
         "--rm".to_string(),
@@ -313,38 +313,6 @@ pub(crate) fn build_run_args(project: &str, image: &str, ssh_key: Option<&str>) 
         "-v".to_string(),
         "/var/run/docker.sock:/var/run/docker.sock".to_string(),
     ];
-
-    if let Some(home) = dirs::home_dir() {
-        // Mount host gitconfig if it exists
-        let gitconfig = home.join(".gitconfig");
-        if gitconfig.exists() {
-            args.push("-v".to_string());
-            args.push(format!("{}:/host-config/gitconfig:ro", gitconfig.display()));
-        }
-
-        // Mount Claude credentials if they exist
-        let claude_dir = home.join(".claude");
-        if claude_dir.exists() {
-            args.push("-v".to_string());
-            args.push(format!(
-                "{}:/host-config/claude-credentials:ro",
-                claude_dir.display()
-            ));
-        }
-
-        // Mount ~/.claude.json if it exists (separate from ~/.claude/ dir)
-        let claude_json = home.join(".claude.json");
-        if claude_json.exists() {
-            args.push("-v".to_string());
-            args.push(format!("{}:/host-config/claude-json:ro", claude_json.display()));
-        }
-    }
-
-    // Mount the specific SSH key if configured
-    if let Some(key_path) = ssh_key {
-        args.push("-v".to_string());
-        args.push(format!("{}:/host-config/ssh_key:ro", key_path));
-    }
 
     args.push("-w".to_string());
     args.push("/project".to_string());

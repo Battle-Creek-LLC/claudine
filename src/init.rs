@@ -150,6 +150,24 @@ pub fn clone_repo(
         args.push(format!("{}:/host-config/ssh_key:ro", key_path));
     }
 
+    // Mount Claude credentials so the entrypoint persists them into the volume
+    if let Some(home) = dirs::home_dir() {
+        let claude_dir = home.join(".claude");
+        if claude_dir.exists() {
+            args.push("-v".to_string());
+            args.push(format!(
+                "{}:/host-config/claude-credentials:ro",
+                claude_dir.display()
+            ));
+        }
+
+        let claude_json = home.join(".claude.json");
+        if claude_json.exists() {
+            args.push("-v".to_string());
+            args.push(format!("{}:/host-config/claude-json:ro", claude_json.display()));
+        }
+    }
+
     // Image name
     args.push(image.to_string());
 
