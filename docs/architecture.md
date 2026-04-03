@@ -46,7 +46,11 @@ claudine destroy <project>             →  remove volume + config
 claudine repo add <project> <url>      →  add a repo to a project
 claudine repo remove <project> <dir>   →  remove a repo from a project
 claudine repo list <project>           →  list repos in a project
-claudine build                         →  build/rebuild the Docker image
+claudine plugin add <project> <name>   →  add a plugin, rebuild project image
+claudine plugin remove <project> <name>→  remove a plugin, rebuild project image
+claudine plugin list <project>         →  list installed plugins
+claudine plugin available              →  show all available plugins
+claudine build                         →  build/rebuild the base Docker image
 claudine list                          →  list projects and their status
 claudine completions <shell>           →  generate shell completions
 ```
@@ -69,6 +73,7 @@ src/
 ├── config.rs        # TOML config loading/saving, defaults, migration
 ├── docker.rs        # Docker command assembly, execution, and embedded build
 ├── init.rs          # interactive project init flow (multi-repo)
+├── plugin.rs        # built-in plugin catalog, Dockerfile generation
 ├── project.rs       # project validation, volume/container helpers
 └── repo.rs          # repo add/remove/list subcommands
 
@@ -136,6 +141,7 @@ name = "claudine:latest"
 **Project config** (`projects/<project>/config.toml`):
 ```toml
 ssh_key = "/Users/you/.ssh/my_key"
+plugins = ["node-20", "heroku"]
 
 [[repos]]
 url = "git@github.com:user/frontend.git"
@@ -146,8 +152,8 @@ branch = "main"
 url = "git@github.com:user/backend.git"
 dir = "backend"
 
-# [image]
-# name = "claudine-node:latest"
+[image]
+name = "claudine:myproject"
 ```
 
 **Rust structs:**
@@ -161,6 +167,7 @@ struct GlobalConfig {
 struct ProjectConfig {
     repos: Vec<RepoConfig>,
     ssh_key: Option<String>,
+    plugins: Option<Vec<String>>,
     image: Option<ImageConfig>,
 }
 
@@ -283,26 +290,55 @@ The CLI checks `std::io::stdin().is_terminal()` before adding `-it` flags to `do
 ### Permission Skip
 The `--dangerously-skip-permissions` flag is set via a bash alias. This is appropriate because the container is already an isolation boundary — interactive permission prompts would be redundant.
 
+## Plugins
+
+Plugins are curated Dockerfile snippets baked into the claudine binary. They add project-specific tools without requiring users to write Dockerfiles.
+
+```bash
+claudine plugin available          # show catalog
+claudine plugin add myproject node-20   # add Node.js 20
+claudine plugin add myproject heroku    # add Heroku CLI (requires node)
+claudine plugin list myproject          # show installed
+claudine plugin remove myproject heroku # remove
+```
+
+Adding a plugin:
+1. Validates the plugin exists in the catalog
+2. Checks requirements (e.g., heroku requires any of node-20/22/24)
+3. Adds the plugin name to the project config
+4. Generates a Dockerfile from `claudine:latest` + all installed plugin snippets
+5. Builds and tags `claudine:<project>`
+6. Updates `image.name` in the project config
+
+**Built-in catalog:**
+
+| Plugin | Description | Requires |
+|--------|-------------|----------|
+| `node-20` | Node.js 20.x LTS | — |
+| `node-22` | Node.js 22.x LTS | — |
+| `node-24` | Node.js 24.x | — |
+| `heroku` | Heroku CLI | node-20, node-22, or node-24 |
+| `python-venv` | Python 3 venv support | — |
+| `rust` | Rust toolchain via rustup | — |
+
+Plugins are ordered by catalog position in the generated Dockerfile (dependencies before dependents).
+
 ## Extending the Image
 
-To add project-specific tools, create a custom Dockerfile:
+For tools not in the plugin catalog, create a custom Dockerfile:
 
 ```dockerfile
 FROM claudine:latest
+# Or from a project image with plugins:
+# FROM claudine:myproject
 
-# Example: add Node.js
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs
-
-# Example: add a custom CLI
 COPY my-tool /usr/local/bin/my-tool
 ```
 
 Then override `image.name` in the project config:
 ```toml
-# ~/.config/claudine/projects/myproject/config.toml
 [image]
-name = "claudine-node:latest"
+name = "my-custom-image:latest"
 ```
 
 ## File Map
@@ -315,6 +351,7 @@ name = "claudine-node:latest"
 | `src/config.rs` | TOML config loading/saving/defaults/migration |
 | `src/docker.rs` | Docker command assembly and execution |
 | `src/init.rs` | Interactive project init flow (multi-repo, SSH key) |
+| `src/plugin.rs` | Built-in plugin catalog and Dockerfile generation |
 | `src/project.rs` | Project name validation, volume/container helpers |
 | `src/repo.rs` | Repo add/remove/list subcommands |
 | `Dockerfile` | Generic container image definition |
