@@ -20,6 +20,10 @@ pub enum Command {
         /// Name of the project to run
         project: String,
 
+        /// Repository directory to use as working directory
+        #[arg(short, long)]
+        repo: Option<String>,
+
         /// Additional arguments passed through to Claude
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
@@ -29,6 +33,10 @@ pub enum Command {
     Shell {
         /// Name of the project
         project: String,
+
+        /// Repository directory to use as working directory
+        #[arg(short, long)]
+        repo: Option<String>,
     },
 
     /// Destroy a project's container and associated resources

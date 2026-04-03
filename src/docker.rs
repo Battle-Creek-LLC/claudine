@@ -68,7 +68,7 @@ pub fn cmd_build() -> anyhow::Result<()> {
 ///
 /// Validates the project state, assembles Docker run arguments, and replaces the
 /// current process with the Docker container via `exec()`.
-pub fn cmd_run(project: &str, extra_args: &[String]) -> anyhow::Result<()> {
+pub fn cmd_run(project: &str, repo: Option<&str>, extra_args: &[String]) -> anyhow::Result<()> {
     project::validate_name(project)?;
 
     if !project::volume_exists(project)? {
@@ -91,7 +91,18 @@ pub fn cmd_run(project: &str, extra_args: &[String]) -> anyhow::Result<()> {
     let global_config = config::load_global()?;
     let image = config::resolve_image(&project_config, &global_config);
 
-    let docker_args = build_run_args(project, &image);
+    // Validate repo dir exists in config if specified
+    if let Some(r) = repo {
+        if !project_config.repos.iter().any(|rc| rc.dir == r) {
+            let available: Vec<&str> = project_config.repos.iter().map(|rc| rc.dir.as_str()).collect();
+            anyhow::bail!(
+                "Repository '{}' not found in project '{}'. Available: {}",
+                r, project, available.join(", ")
+            );
+        }
+    }
+
+    let docker_args = build_run_args(project, &image, repo);
 
     // Build the full command: docker <run_args> <image> claude [extra_args...]
     let mut cmd = Command::new("docker");
@@ -112,7 +123,7 @@ pub fn cmd_run(project: &str, extra_args: &[String]) -> anyhow::Result<()> {
 /// If the container is already running (e.g., Claude is active), attaches a new
 /// bash session via `docker exec`. Otherwise, starts a fresh container with the
 /// entrypoint's default bash shell.
-pub fn cmd_shell(project: &str) -> anyhow::Result<()> {
+pub fn cmd_shell(project: &str, repo: Option<&str>) -> anyhow::Result<()> {
     project::validate_name(project)?;
 
     if !project::volume_exists(project)? {
@@ -132,6 +143,11 @@ pub fn cmd_shell(project: &str) -> anyhow::Result<()> {
             cmd.arg("-it");
         }
 
+        // Set working directory if repo specified
+        if let Some(r) = repo {
+            cmd.args(["-w", &format!("/project/{}", r)]);
+        }
+
         cmd.arg(project::container_name(project));
         cmd.arg("bash");
 
@@ -145,7 +161,7 @@ pub fn cmd_shell(project: &str) -> anyhow::Result<()> {
     let global_config = config::load_global()?;
     let image = config::resolve_image(&project_config, &global_config);
 
-    let docker_args = build_run_args(project, &image);
+    let docker_args = build_run_args(project, &image, repo);
 
     let mut cmd = Command::new("docker");
     cmd.args(&docker_args);
@@ -302,7 +318,7 @@ pub fn cmd_list() -> anyhow::Result<()> {
 ///
 /// This function is shared between `cmd_run` and `cmd_shell` to ensure
 /// consistent container configuration.
-pub(crate) fn build_run_args(project: &str, image: &str) -> Vec<String> {
+pub(crate) fn build_run_args(project: &str, image: &str, repo: Option<&str>) -> Vec<String> {
     let mut args = vec![
         "run".to_string(),
         "--rm".to_string(),
@@ -315,7 +331,10 @@ pub(crate) fn build_run_args(project: &str, image: &str) -> Vec<String> {
     ];
 
     args.push("-w".to_string());
-    args.push("/project".to_string());
+    match repo {
+        Some(r) => args.push(format!("/project/{}", r)),
+        None => args.push("/project".to_string()),
+    };
 
     args.push("-e".to_string());
     args.push("HOME=/home".to_string());
