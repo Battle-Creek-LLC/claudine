@@ -49,6 +49,12 @@ pub fn catalog() -> Vec<Plugin> {
             requires: &[],
             dockerfile: "RUN apt-get update && apt-get install -y build-essential \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \\\n    && echo 'source /root/.cargo/env' >> /etc/bash.bashrc",
         },
+        Plugin {
+            name: "lin",
+            description: "Fast CLI for Linear (built from source)",
+            requires: &["rust"],
+            dockerfile: "RUN . /root/.cargo/env \\\n    && git clone https://github.com/sprouted-dev/lin.git /tmp/lin \\\n    && cd /tmp/lin \\\n    && cargo build --release \\\n    && cp target/release/lin /usr/local/bin/lin \\\n    && chmod 755 /usr/local/bin/lin \\\n    && rm -rf /tmp/lin",
+        },
     ]
 }
 
