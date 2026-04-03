@@ -110,6 +110,10 @@ pub fn cmd_init(name: &str) -> anyhow::Result<()> {
     let global_config = config::load_global()?;
     let image = config::resolve_image(&project_config, &global_config);
 
+    // Set up home directory with configs, credentials, and settings
+    println!("Setting up home directory...");
+    setup_home(name, &image, ssh_key.as_deref())?;
+
     // Clone each repo
     for repo in &repos {
         clone_repo(name, &image, repo, ssh_key.as_deref())?;
@@ -119,57 +123,81 @@ pub fn cmd_init(name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Clone a single repository into the project volume.
-pub fn clone_repo(
+const SETUP_HOME_SCRIPT: &str = include_str!("../setup-home.sh");
+
+/// Set up the home directory in the volume with configs, credentials, and settings.
+/// Runs a one-shot container with the embedded setup script.
+fn setup_home(
     project_name: &str,
     image: &str,
-    repo: &config::RepoConfig,
     ssh_key: Option<&str>,
 ) -> anyhow::Result<()> {
+    let volume = project::volume_name(project_name);
+    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
+
+    // Write setup script to a temp file
+    let mut tmp = tempfile::NamedTempFile::new()
+        .map_err(|e| anyhow::anyhow!("Failed to create temp file: {e}"))?;
+    std::io::Write::write_all(&mut tmp, SETUP_HOME_SCRIPT.as_bytes())?;
+
     let mut args: Vec<String> = vec![
         "run".to_string(),
         "--rm".to_string(),
         "-v".to_string(),
-        format!("{}:/project", project::volume_name(project_name)),
+        format!("{}:/project", volume),
+        "-v".to_string(),
+        format!("{}:/tmp/setup-home.sh:ro", tmp.path().display()),
     ];
 
-    // Mount host gitconfig if it exists
-    if let Some(gitconfig_path) = host_gitconfig_path() {
-        if gitconfig_path.exists() {
-            args.push("-v".to_string());
-            args.push(format!(
-                "{}:/host-config/gitconfig:ro",
-                gitconfig_path.display()
-            ));
-        }
+    // Mount host configs for the setup script to copy
+    let gitconfig = home.join(".gitconfig");
+    if gitconfig.exists() {
+        args.extend(["-v".to_string(), format!("{}:/tmp/host-gitconfig:ro", gitconfig.display())]);
     }
 
-    // Mount the specific SSH key if configured
     if let Some(key_path) = ssh_key {
-        args.push("-v".to_string());
-        args.push(format!("{}:/host-config/ssh_key:ro", key_path));
+        args.extend(["-v".to_string(), format!("{}:/tmp/host-ssh-key:ro", key_path)]);
     }
 
-    // Mount Claude credentials so the entrypoint persists them into the volume
-    if let Some(home) = dirs::home_dir() {
-        let claude_dir = home.join(".claude");
-        if claude_dir.exists() {
-            args.push("-v".to_string());
-            args.push(format!(
-                "{}:/host-config/claude-credentials:ro",
-                claude_dir.display()
-            ));
-        }
-
-        let claude_json = home.join(".claude.json");
-        if claude_json.exists() {
-            args.push("-v".to_string());
-            args.push(format!("{}:/host-config/claude-json:ro", claude_json.display()));
-        }
+    let claude_dir = home.join(".claude");
+    if claude_dir.exists() {
+        args.extend(["-v".to_string(), format!("{}:/tmp/host-claude:ro", claude_dir.display())]);
     }
 
-    // Image name
-    args.push(image.to_string());
+    let claude_json = home.join(".claude.json");
+    if claude_json.exists() {
+        args.extend(["-v".to_string(), format!("{}:/tmp/host-claude-json:ro", claude_json.display())]);
+    }
+
+    args.extend([
+        "--entrypoint".to_string(), "bash".to_string(),
+        image.to_string(),
+        "/tmp/setup-home.sh".to_string(),
+    ]);
+
+    let status = Command::new("docker")
+        .args(&args)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to run setup container: {e}"))?;
+
+    if !status.success() {
+        anyhow::bail!("Home directory setup failed.");
+    }
+
+    Ok(())
+}
+
+/// Clone a single repository into the project volume.
+/// Assumes setup_home has already run, so SSH keys and git config are in the volume.
+pub fn clone_repo(
+    project_name: &str,
+    image: &str,
+    repo: &config::RepoConfig,
+    _ssh_key: Option<&str>,
+) -> anyhow::Result<()> {
+    let volume = project::volume_name(project_name);
 
     // Clone command — clone into /project/<dir>
     let clone_target = format!("/project/{}", repo.dir);
@@ -181,9 +209,17 @@ pub fn clone_repo(
     clone_cmd.push(repo.url.clone());
     clone_cmd.push(clone_target);
 
+    let mut args: Vec<String> = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "-v".to_string(),
+        format!("{}:/project", volume),
+        "-e".to_string(),
+        "HOME=/project/home".to_string(),
+        image.to_string(),
+    ];
     args.extend(clone_cmd);
 
-    // Run the clone
     println!("Cloning {}...", repo.dir);
     let status = Command::new("docker")
         .args(&args)
@@ -202,9 +238,4 @@ pub fn clone_repo(
     }
 
     Ok(())
-}
-
-/// Return the path to the host's ~/.gitconfig file, if the home directory is known.
-fn host_gitconfig_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|home| home.join(".gitconfig"))
 }
