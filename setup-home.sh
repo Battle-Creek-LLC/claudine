@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # This script runs as root inside a one-shot container during `claudine init`.
-# It sets up /project/home with configs, credentials, and Claude settings.
+# It sets up /project/home with git config, SSH key, and Claude settings.
+# Claude auth is handled by the user inside the container (not copied from host).
 
 # Create and own home directory
 mkdir -p /project/home
@@ -27,19 +28,6 @@ if [ -f /tmp/host-ssh-key ]; then
     printf 'Host *\n    IdentityFile /project/home/.ssh/id_key\n    IdentitiesOnly yes\n    StrictHostKeyChecking accept-new\n' > /project/home/.ssh/config
     chmod 600 /project/home/.ssh/config
     chown claude:claude /project/home/.ssh/config
-fi
-
-# Claude credentials directory
-if [ -d /tmp/host-claude ]; then
-    mkdir -p /project/home/.claude
-    cp -a /tmp/host-claude/. /project/home/.claude/
-    chown -R claude:claude /project/home/.claude
-fi
-
-# Claude config file
-if [ -f /tmp/host-claude-json ]; then
-    cp /tmp/host-claude-json /project/home/.claude.json
-    chown claude:claude /project/home/.claude.json
 fi
 
 # Write container-specific Claude settings

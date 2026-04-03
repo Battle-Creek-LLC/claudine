@@ -171,16 +171,6 @@ fn setup_home(
         args.extend(["-v".to_string(), format!("{}:/tmp/host-ssh-key:ro", key_path)]);
     }
 
-    let claude_dir = home.join(".claude");
-    if claude_dir.exists() {
-        args.extend(["-v".to_string(), format!("{}:/tmp/host-claude:ro", claude_dir.display())]);
-    }
-
-    let claude_json = home.join(".claude.json");
-    if claude_json.exists() {
-        args.extend(["-v".to_string(), format!("{}:/tmp/host-claude-json:ro", claude_json.display())]);
-    }
-
     args.extend([
         "--entrypoint".to_string(), "bash".to_string(),
         image.to_string(),
