@@ -44,6 +44,13 @@ pub fn catalog() -> Vec<Plugin> {
             dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/*",
         },
         Plugin {
+            name: "gh",
+            description: "GitHub CLI",
+            requires: &[],
+            build_tool: None,
+            dockerfile: "RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \\\n       | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\" \\\n       > /etc/apt/sources.list.d/github-cli.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends gh \\\n    && rm -rf /var/lib/apt/lists/*",
+        },
+        Plugin {
             name: "heroku",
             description: "Heroku CLI",
             requires: &["node-20", "node-22", "node-24"],
@@ -77,6 +84,13 @@ pub fn catalog() -> Vec<Plugin> {
             requires: &[],
             build_tool: Some(BuildTool::Go),
             dockerfile: "RUN git clone https://github.com/jstockdi/glab.git /tmp/glab \\\n    && cd /tmp/glab \\\n    && make build \\\n    && cp bin/glab /usr/local/bin/glab \\\n    && chmod 755 /usr/local/bin/glab \\\n    && rm -rf /tmp/glab",
+        },
+        Plugin {
+            name: "rodney",
+            description: "Chrome automation CLI (built from source, jstockdi fork)",
+            requires: &[],
+            build_tool: Some(BuildTool::Go),
+            dockerfile: "RUN git clone https://github.com/jstockdi/rodney.git /tmp/rodney \\\n    && cd /tmp/rodney \\\n    && go build -o /usr/local/bin/rodney . \\\n    && chmod 755 /usr/local/bin/rodney \\\n    && rm -rf /tmp/rodney",
         },
     ]
 }
