@@ -1,5 +1,7 @@
 use crate::{config, docker};
 
+const GO_VERSION: &str = "1.25.8";
+
 /// A built-in plugin representing a Dockerfile snippet that can be layered
 /// on top of the base claudine image.
 pub struct Plugin {
@@ -10,7 +12,7 @@ pub struct Plugin {
     /// Build toolchain needed to compile this plugin from source.
     /// The Dockerfile generator installs and removes the toolchain automatically.
     pub build_tool: Option<BuildTool>,
-    pub dockerfile: &'static str,
+    pub dockerfile: String,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -27,77 +29,87 @@ pub fn catalog() -> Vec<Plugin> {
             description: "Node.js 20.x LTS",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable",
+            dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable".to_string(),
         },
         Plugin {
             name: "node-22",
             description: "Node.js 22.x LTS",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable",
+            dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable".to_string(),
         },
         Plugin {
             name: "node-24",
             description: "Node.js 24.x",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable",
+            dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable".to_string(),
         },
         Plugin {
             name: "gh",
             description: "GitHub CLI",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \\\n       | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\" \\\n       > /etc/apt/sources.list.d/github-cli.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends gh \\\n    && rm -rf /var/lib/apt/lists/*",
+            dockerfile: "RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \\\n       | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\" \\\n       > /etc/apt/sources.list.d/github-cli.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends gh \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
         },
         Plugin {
             name: "heroku",
             description: "Heroku CLI",
             requires: &["node-20", "node-22", "node-24"],
             build_tool: None,
-            dockerfile: "RUN curl https://cli-assets.heroku.com/install.sh | sh",
+            dockerfile: "RUN curl https://cli-assets.heroku.com/install.sh | sh".to_string(),
         },
         Plugin {
             name: "python-venv",
             description: "Python 3 virtual environment support",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN apt-get update && apt-get install -y python3-venv \\\n    && rm -rf /var/lib/apt/lists/*",
+            dockerfile: "RUN apt-get update && apt-get install -y python3-venv \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
         },
         Plugin {
             name: "rust",
             description: "Rust toolchain (persistent, available at runtime)",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN apt-get update && apt-get install -y build-essential \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \\\n    && echo 'source /root/.cargo/env' >> /etc/bash.bashrc",
+            dockerfile: "RUN apt-get update && apt-get install -y build-essential \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && export RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \\\n    && chmod -R a+rX /usr/local/rustup /usr/local/cargo \\\n    && echo 'export PATH=$PATH:/usr/local/cargo/bin' >> /etc/bash.bashrc \\\n    && echo 'export PATH=$PATH:/usr/local/cargo/bin' > /etc/profile.d/rust.sh".to_string(),
+        },
+        Plugin {
+            name: "go",
+            description: "Go toolchain (persistent, available at runtime)",
+            requires: &[],
+            build_tool: None,
+            dockerfile: format!(
+                "RUN curl -fsSL https://go.dev/dl/go{ver}.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz \\\n    && echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/bash.bashrc \\\n    && echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/go.sh",
+                ver = GO_VERSION
+            ),
         },
         Plugin {
             name: "lin",
             description: "Fast CLI for Linear (built from source)",
             requires: &[],
             build_tool: Some(BuildTool::Rust),
-            dockerfile: "RUN . /root/.cargo/env \\\n    && git clone https://github.com/sprouted-dev/lin.git /tmp/lin \\\n    && cd /tmp/lin \\\n    && cargo build --release \\\n    && cp target/release/lin /usr/local/bin/lin \\\n    && chmod 755 /usr/local/bin/lin \\\n    && rm -rf /tmp/lin",
+            dockerfile: "RUN git clone https://github.com/sprouted-dev/lin.git /tmp/lin \\\n    && cd /tmp/lin \\\n    && cargo build --release \\\n    && cp target/release/lin /usr/local/bin/lin \\\n    && chmod 755 /usr/local/bin/lin \\\n    && rm -rf /tmp/lin".to_string(),
         },
         Plugin {
             name: "glab",
             description: "GitLab CLI (built from source, jstockdi fork)",
             requires: &[],
             build_tool: Some(BuildTool::Go),
-            dockerfile: "RUN git clone https://github.com/jstockdi/glab.git /tmp/glab \\\n    && cd /tmp/glab \\\n    && make build \\\n    && cp bin/glab /usr/local/bin/glab \\\n    && chmod 755 /usr/local/bin/glab \\\n    && rm -rf /tmp/glab",
+            dockerfile: "RUN git clone https://github.com/jstockdi/glab.git /tmp/glab \\\n    && cd /tmp/glab \\\n    && make build \\\n    && cp bin/glab /usr/local/bin/glab \\\n    && chmod 755 /usr/local/bin/glab \\\n    && rm -rf /tmp/glab".to_string(),
         },
         Plugin {
             name: "aws",
             description: "AWS CLI v2",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN curl -fsSL \"https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip\" -o /tmp/awscliv2.zip \\\n    && unzip -q /tmp/awscliv2.zip -d /tmp \\\n    && /tmp/aws/install \\\n    && rm -rf /tmp/awscliv2.zip /tmp/aws",
+            dockerfile: "RUN curl -fsSL \"https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip\" -o /tmp/awscliv2.zip \\\n    && unzip -q /tmp/awscliv2.zip -d /tmp \\\n    && /tmp/aws/install \\\n    && rm -rf /tmp/awscliv2.zip /tmp/aws".to_string(),
         },
         Plugin {
             name: "rodney",
             description: "Chrome automation CLI (built from source, jstockdi fork)",
             requires: &[],
             build_tool: Some(BuildTool::Go),
-            dockerfile: "RUN git clone https://github.com/jstockdi/rodney.git /tmp/rodney \\\n    && cd /tmp/rodney \\\n    && go build -o /usr/local/bin/rodney . \\\n    && chmod 755 /usr/local/bin/rodney \\\n    && rm -rf /tmp/rodney",
+            dockerfile: "RUN git clone https://github.com/jstockdi/rodney.git /tmp/rodney \\\n    && cd /tmp/rodney \\\n    && go build -o /usr/local/bin/rodney . \\\n    && chmod 755 /usr/local/bin/rodney \\\n    && rm -rf /tmp/rodney".to_string(),
         },
     ]
 }
@@ -159,7 +171,8 @@ pub fn generate_dockerfile(plugins: &[String]) -> anyhow::Result<String> {
 
     let needs_rust = ordered.iter().any(|p| p.build_tool == Some(BuildTool::Rust))
         && !plugins.iter().any(|n| n == "rust");
-    let needs_go = ordered.iter().any(|p| p.build_tool == Some(BuildTool::Go));
+    let needs_go = ordered.iter().any(|p| p.build_tool == Some(BuildTool::Go))
+        && !plugins.iter().any(|n| n == "go");
 
     let mut lines = vec!["FROM claudine:latest".to_string()];
 
@@ -178,11 +191,11 @@ pub fn generate_dockerfile(plugins: &[String]) -> anyhow::Result<String> {
         let mut install_parts = vec!["RUN apt-get update && apt-get install -y build-essential".to_string()];
 
         if needs_rust {
-            install_parts.push("    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y".to_string());
+            install_parts.push("    && export RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path".to_string());
         }
 
         if needs_go {
-            install_parts.push("    && curl -fsSL https://go.dev/dl/go1.25.8.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz".to_string());
+            install_parts.push(format!("    && curl -fsSL https://go.dev/dl/go{GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz"));
         }
 
         lines.push(install_parts.join(" \\\n"));
@@ -193,9 +206,12 @@ pub fn generate_dockerfile(plugins: &[String]) -> anyhow::Result<String> {
     for plugin in &compiled {
         lines.push(String::new());
         lines.push(format!("# Plugin: {}", plugin.name));
-        // Go plugins need PATH set
+        // Compiled plugins need PATH set for their build toolchain
         if plugin.build_tool == Some(BuildTool::Go) {
             let dockerfile = plugin.dockerfile.replacen("RUN ", "RUN export PATH=$PATH:/usr/local/go/bin && ", 1);
+            lines.push(dockerfile);
+        } else if plugin.build_tool == Some(BuildTool::Rust) {
+            let dockerfile = plugin.dockerfile.replacen("RUN ", "RUN export PATH=$PATH:/usr/local/cargo/bin && ", 1);
             lines.push(dockerfile);
         } else {
             lines.push(plugin.dockerfile.to_string());
@@ -210,7 +226,7 @@ pub fn generate_dockerfile(plugins: &[String]) -> anyhow::Result<String> {
         let mut cleanup = vec!["RUN apt-get purge -y build-essential && apt-get autoremove -y".to_string()];
 
         if needs_rust {
-            cleanup.push("    && rm -rf /root/.cargo /root/.rustup".to_string());
+            cleanup.push("    && rm -rf /usr/local/cargo /usr/local/rustup".to_string());
         }
         if needs_go {
             cleanup.push("    && rm -rf /usr/local/go".to_string());
@@ -469,7 +485,18 @@ mod tests {
         assert!(names.contains(&"heroku"));
         assert!(names.contains(&"python-venv"));
         assert!(names.contains(&"rust"));
+        assert!(names.contains(&"go"));
         assert!(names.contains(&"aws"));
+    }
+
+    #[test]
+    fn go_plugin_skips_build_toolchain() {
+        let plugins = vec!["go".to_string(), "rodney".to_string()];
+        let result = generate_dockerfile(&plugins).unwrap();
+        assert!(!result.contains("Build phase: install build toolchains"));
+        assert!(!result.contains("Cleanup: remove build toolchains"));
+        assert!(result.contains("# Plugin: go"));
+        assert!(result.contains("# Plugin: rodney"));
     }
 
     #[test]
