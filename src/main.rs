@@ -20,8 +20,12 @@ fn main() -> anyhow::Result<()> {
             let project = resolve::project(&project)?;
             plugin::cmd_build_project(&project)
         }
-        Command::Init { project, ssh_key, repos, plugins } => {
-            init::cmd_init(&project, ssh_key.as_deref(), &repos, &plugins)
+        Command::Init { project, ssh_key, repos, plugins, agent } => {
+            if let Some(agent_path) = agent {
+                init::cmd_init_agent(&project, &agent_path, ssh_key.as_deref())
+            } else {
+                init::cmd_init(&project, ssh_key.as_deref(), &repos, &plugins)
+            }
         }
         Command::Run { project, repo, resume, args } => {
             let project = resolve::project(&project)?;

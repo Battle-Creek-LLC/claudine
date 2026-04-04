@@ -19,12 +19,16 @@ pub enum Command {
         ssh_key: Option<String>,
 
         /// Repository URLs (repeatable, skips interactive prompt)
-        #[arg(long = "repo")]
+        #[arg(long = "repo", conflicts_with = "agent")]
         repos: Vec<String>,
 
         /// Plugins to install (repeatable)
-        #[arg(long = "plugin")]
+        #[arg(long = "plugin", conflicts_with = "agent")]
         plugins: Vec<String>,
+
+        /// Analyze a local folder with Claude to discover repos and plugins
+        #[arg(long)]
+        agent: Option<String>,
     },
 
     /// Run Claude Code in a container for the given project

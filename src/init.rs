@@ -1,8 +1,9 @@
-use std::io::IsTerminal;
+use std::io::{BufRead, BufReader, IsTerminal};
 use std::path::PathBuf;
 use std::process::Command;
 
 use dialoguer::{Confirm, Input};
+use serde::Deserialize;
 
 use crate::{config, plugin, project};
 
@@ -86,8 +87,283 @@ pub fn cmd_init(name: &str, flag_ssh_key: Option<&str>, flag_repos: &[String], f
         collect_repos_from_flags(flag_repos)?
     };
 
+    execute_init(name, ssh_key, repos, flag_plugins.to_vec())
+}
+
+// -- Agent-assisted init --------------------------------------------------
+
+const AGENT_PROMPT: &str = include_str!("../agent-init-prompt.md");
+
+#[derive(Deserialize)]
+struct AgentRepo {
+    url: String,
+    dir: String,
+    branch: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct SuggestedPlugin {
+    name: String,
+    reason: String,
+}
+
+#[derive(Deserialize)]
+struct AgentResult {
+    repos: Vec<AgentRepo>,
+    plugins: Vec<String>,
+    #[serde(default)]
+    suggested_plugins: Vec<SuggestedPlugin>,
+    ssh_key_needed: bool,
+}
+
+/// Initialize a project by having Claude analyze a local folder first.
+///
+/// Runs `claude -p` with the analysis prompt, parses the structured JSON output,
+/// shows the user a summary, and proceeds with init after confirmation.
+pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) -> anyhow::Result<()> {
+    project::validate_name(name)?;
+
+    // Validate the target path
+    let path = PathBuf::from(agent_path);
+    if !path.exists() {
+        anyhow::bail!("Path not found: {}", agent_path);
+    }
+    if !path.is_dir() {
+        anyhow::bail!("Not a directory: {}", agent_path);
+    }
+
+    // Check claude is available on the host
+    which::which("claude")
+        .map_err(|_| anyhow::anyhow!("'claude' not found on PATH. Install Claude Code first."))?;
+
+    // Check if volume already exists
+    if project::volume_exists(name)? {
+        let proceed = Confirm::new()
+            .with_prompt(format!(
+                "Volume already exists for '{}'. Re-initialize? This will not delete existing data.",
+                name
+            ))
+            .default(false)
+            .interact()?;
+
+        if !proceed {
+            anyhow::bail!("Init cancelled.");
+        }
+    }
+
+    // Run claude -p with stream-json so we see progress in real time
+    println!("Analyzing {}...\n", agent_path);
+
+    let response_text = run_agent_claude(AGENT_PROMPT, &path)?;
+
+    // Print the full analysis
+    println!("\n{}", response_text);
+
+    // Extract the JSON block from the response
+    let result = extract_agent_json(&response_text)?;
+
+    if result.repos.is_empty() {
+        anyhow::bail!("No repositories found in the analysis.");
+    }
+
+    // Validate all suggested plugins exist
+    for p in &result.plugins {
+        if plugin::find(p).is_none() {
+            eprintln!("Warning: agent suggested unknown plugin '{}', skipping.", p);
+        }
+    }
+    let plugins: Vec<String> = result.plugins.iter()
+        .filter(|p| plugin::find(p).is_some())
+        .cloned()
+        .collect();
+
+    // Show summary
+    println!("\n--- Init Plan ---");
+    println!("Project:  {}", name);
+    println!("Repos:    {}", result.repos.len());
+    for repo in &result.repos {
+        let branch = repo.branch.as_deref().unwrap_or("(default)");
+        println!("          {} → {} [{}]", repo.dir, repo.url, branch);
+    }
+    if plugins.is_empty() {
+        println!("Plugins:  (none)");
+    } else {
+        println!("Plugins:  {}", plugins.join(", "));
+    }
+    println!("SSH:      {}", if result.ssh_key_needed { "required" } else { "not needed" });
+
+    if !result.suggested_plugins.is_empty() {
+        println!("\n--- Suggested New Plugins ---");
+        println!("The following technologies were detected but have no claudine plugin yet:");
+        for suggestion in &result.suggested_plugins {
+            println!("  {} — {}", suggestion.name, suggestion.reason);
+        }
+    }
+
+    // Confirm
+    let proceed = Confirm::new()
+        .with_prompt("Proceed with init?")
+        .default(true)
+        .interact()?;
+
+    if !proceed {
+        anyhow::bail!("Init cancelled.");
+    }
+
+    // Resolve SSH key
+    let ssh_key = if result.ssh_key_needed {
+        if let Some(key) = flag_ssh_key {
+            let key_path = PathBuf::from(key);
+            if !key_path.exists() {
+                anyhow::bail!("SSH key not found: {}", key_path.display());
+            }
+            Some(key_path.display().to_string())
+        } else {
+            let ssh_key_input: String = Input::new()
+                .with_prompt("SSH key path")
+                .interact_text()?;
+
+            let trimmed = ssh_key_input.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                let key_path = PathBuf::from(trimmed);
+                if !key_path.exists() {
+                    anyhow::bail!("SSH key not found: {}", key_path.display());
+                }
+                Some(key_path.display().to_string())
+            }
+        }
+    } else {
+        flag_ssh_key.map(|s| s.to_string())
+    };
+
+    // Convert agent repos to config repos
+    let repos: Vec<config::RepoConfig> = result.repos.into_iter().map(|r| {
+        config::RepoConfig {
+            url: r.url,
+            dir: r.dir,
+            branch: r.branch,
+        }
+    }).collect();
+
+    execute_init(name, ssh_key, repos, plugins)
+}
+
+/// Run `claude -p` with stream-json output, printing one-line tool summaries as
+/// Claude works, and return the final response text.
+fn run_agent_claude(prompt: &str, cwd: &std::path::Path) -> anyhow::Result<String> {
+    let mut child = Command::new("claude")
+        .args(["-p", prompt, "--output-format", "stream-json", "--verbose"])
+        .current_dir(cwd)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()
+        .map_err(|e| anyhow::anyhow!("Failed to run 'claude -p': {e}"))?;
+
+    let stdout = child.stdout.take()
+        .ok_or_else(|| anyhow::anyhow!("Failed to capture claude stdout"))?;
+    let reader = BufReader::new(stdout);
+    let mut result_text = String::new();
+
+    for line in reader.lines() {
+        let line = line.map_err(|e| anyhow::anyhow!("Failed to read claude output: {e}"))?;
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) else {
+            continue;
+        };
+
+        let event_type = event.get("type").and_then(|t| t.as_str()).unwrap_or("");
+
+        match event_type {
+            "assistant" => {
+                // Look for tool_use blocks in message content
+                if let Some(blocks) = event.pointer("/message/content").and_then(|c| c.as_array()) {
+                    for block in blocks {
+                        if block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
+                            let tool = block.get("name").and_then(|n| n.as_str()).unwrap_or("tool");
+                            let summary = format_tool_summary(tool, block);
+                            println!("  → {}", summary);
+                        }
+                    }
+                }
+            }
+            "result" => {
+                if let Some(text) = event.get("result").and_then(|r| r.as_str()) {
+                    result_text = text.to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let status = child.wait()
+        .map_err(|e| anyhow::anyhow!("Failed to wait for claude: {e}"))?;
+
+    if !status.success() {
+        anyhow::bail!("Claude analysis failed (exit code: {}).", status);
+    }
+
+    if result_text.is_empty() {
+        anyhow::bail!("No result received from Claude.");
+    }
+
+    Ok(result_text)
+}
+
+/// Format a one-line summary for a tool call event.
+fn format_tool_summary(tool: &str, block: &serde_json::Value) -> String {
+    // Pick the first short string value from the input object as context
+    let detail = block.get("input")
+        .and_then(|input| input.as_object())
+        .and_then(|obj| {
+            obj.values()
+                .filter_map(|v| v.as_str())
+                .next()
+                .map(|s| s.lines().next().unwrap_or(s))
+        })
+        .unwrap_or("");
+
+    if detail.is_empty() {
+        return tool.to_string();
+    }
+
+    let line = format!("{}: {}", tool, detail);
+    if line.len() > 72 {
+        format!("{}...", &line[..69])
+    } else {
+        line
+    }
+}
+
+/// Extract the last ```json fenced block from Claude's output and parse it.
+fn extract_agent_json(text: &str) -> anyhow::Result<AgentResult> {
+    let start = text.rfind("```json")
+        .ok_or_else(|| anyhow::anyhow!("No JSON block found in Claude's response."))?;
+    let json_start = start + "```json".len();
+    let remaining = &text[json_start..];
+    let json_end = remaining.find("```")
+        .ok_or_else(|| anyhow::anyhow!("Unterminated JSON block in Claude's response."))?;
+    let json_str = remaining[..json_end].trim();
+
+    serde_json::from_str(json_str)
+        .map_err(|e| anyhow::anyhow!("Failed to parse init parameters from Claude's response: {e}"))
+}
+
+// -- Shared init execution ------------------------------------------------
+
+/// Execute the init steps: create volume, setup home, clone repos, build plugins.
+fn execute_init(
+    name: &str,
+    ssh_key: Option<String>,
+    repos: Vec<config::RepoConfig>,
+    plugins: Vec<String>,
+) -> anyhow::Result<()> {
     // Create volume if it does not already exist
-    if !volume_already_exists {
+    if !project::volume_exists(name)? {
         println!("Creating volume '{}'...", project::volume_name(name));
         project::create_volume(name)?;
     }
@@ -101,20 +377,20 @@ pub fn cmd_init(name: &str, flag_ssh_key: Option<&str>, flag_repos: &[String], f
     }
 
     // Build and save project config
-    let plugins = if flag_plugins.is_empty() {
+    let plugins_opt = if plugins.is_empty() {
         None
     } else {
-        Some(flag_plugins.to_vec())
+        Some(plugins)
     };
-    let image_override = if plugins.is_some() {
+    let image_override = if plugins_opt.is_some() {
         Some(config::ImageConfig { name: format!("claudine:{}", name) })
     } else {
         None
     };
     let project_config = config::ProjectConfig {
         repos: repos.clone(),
-        ssh_key: ssh_key.clone(),
-        plugins,
+        ssh_key,
+        plugins: plugins_opt,
         image: image_override,
     };
     config::save_project(name, &project_config)?;
@@ -125,7 +401,7 @@ pub fn cmd_init(name: &str, flag_ssh_key: Option<&str>, flag_repos: &[String], f
 
     // Set up home directory with configs, credentials, and settings
     println!("Setting up home directory...");
-    setup_home(name, &image, ssh_key.as_deref())?;
+    setup_home(name, &image, project_config.ssh_key.as_deref())?;
 
     // Clone each repo
     for repo in &repos {
@@ -143,6 +419,8 @@ pub fn cmd_init(name: &str, flag_ssh_key: Option<&str>, flag_repos: &[String], f
     println!("Project '{}' initialized successfully.", name);
     Ok(())
 }
+
+// -- Interactive repo collection ------------------------------------------
 
 /// Collect repos interactively via dialoguer prompts.
 fn collect_repos_interactive() -> anyhow::Result<Vec<config::RepoConfig>> {
@@ -221,6 +499,8 @@ fn collect_repos_from_flags(urls: &[String]) -> anyhow::Result<Vec<config::RepoC
 
     Ok(repos)
 }
+
+// -- Home setup and repo cloning ------------------------------------------
 
 const SETUP_HOME_SCRIPT: &str = include_str!("../setup-home.sh");
 
