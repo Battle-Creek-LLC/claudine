@@ -45,10 +45,10 @@ fn main() -> anyhow::Result<()> {
                 init::cmd_init(&project, ssh_key.as_deref(), &repos, &layers)
             }
         }
-        Command::Run { project, repo, resume, args } => {
+        Command::Run { project, repo, resume, prompt, args } => {
             let project = resolve::project(&project)?;
             let repo = repo.map(|r| resolve::repo(&project, &r)).transpose()?;
-            docker::cmd_run(&project, repo.as_deref(), resume.as_deref(), &args)
+            docker::cmd_run(&project, repo.as_deref(), resume.as_deref(), prompt.as_deref(), &args)
         }
         Command::Shell { project, repo } => {
             let project = resolve::project(&project)?;

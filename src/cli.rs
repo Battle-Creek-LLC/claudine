@@ -44,6 +44,10 @@ pub enum Command {
         #[arg(long, short = 'R')]
         resume: Option<String>,
 
+        /// Run a prompt non-interactively (--output-format stream-json --verbose)
+        #[arg(short, long)]
+        prompt: Option<String>,
+
         /// Additional arguments passed through to Claude (after --)
         #[arg(last = true)]
         args: Vec<String>,
