@@ -71,7 +71,7 @@ pub fn catalog() -> Vec<Plugin> {
             description: "Rust toolchain (persistent, available at runtime)",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN apt-get update && apt-get install -y build-essential \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && export RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \\\n    && chmod -R a+rX /usr/local/rustup /usr/local/cargo \\\n    && echo 'export PATH=$PATH:/usr/local/cargo/bin' >> /etc/bash.bashrc \\\n    && echo 'export PATH=$PATH:/usr/local/cargo/bin' > /etc/profile.d/rust.sh".to_string(),
+            dockerfile: "RUN apt-get update && apt-get install -y build-essential \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && export RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \\\n    && chmod -R a+rX /usr/local/rustup /usr/local/cargo \\\n    && echo 'export PATH=$PATH:/usr/local/cargo/bin' >> /etc/bash.bashrc \\\n    && echo 'export PATH=$PATH:/usr/local/cargo/bin' > /etc/profile.d/rust.sh \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin".to_string(),
         },
         Plugin {
             name: "go",
