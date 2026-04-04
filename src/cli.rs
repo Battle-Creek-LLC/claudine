@@ -36,6 +36,10 @@ pub enum Command {
         /// Repository directory to use as working directory
         repo: Option<String>,
 
+        /// Resume a previous conversation by name or session ID
+        #[arg(long, short = 'R')]
+        resume: Option<String>,
+
         /// Additional arguments passed through to Claude (after --)
         #[arg(last = true)]
         args: Vec<String>,

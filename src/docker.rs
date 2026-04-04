@@ -102,10 +102,14 @@ pub fn cmd_build_project(project: &str, dockerfile_content: &str) -> anyhow::Res
 ///
 /// If the project container is already running, attaches via `docker exec`.
 /// Otherwise, starts a new named container. Uses `exec()` to replace the process.
-pub fn cmd_run(project: &str, repo: Option<&str>, extra_args: &[String]) -> anyhow::Result<()> {
+pub fn cmd_run(project: &str, repo: Option<&str>, resume: Option<&str>, extra_args: &[String]) -> anyhow::Result<()> {
     validate_project(project, repo)?;
 
     let mut container_cmd: Vec<String> = vec!["claude".to_string(), "--dangerously-skip-permissions".to_string()];
+    if let Some(session) = resume {
+        container_cmd.push("--resume".to_string());
+        container_cmd.push(session.to_string());
+    }
     container_cmd.extend_from_slice(extra_args);
 
     exec_in_project(project, repo, &container_cmd)

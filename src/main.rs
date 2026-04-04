@@ -23,10 +23,10 @@ fn main() -> anyhow::Result<()> {
         Command::Init { project, ssh_key, repos, plugins } => {
             init::cmd_init(&project, ssh_key.as_deref(), &repos, &plugins)
         }
-        Command::Run { project, repo, args } => {
+        Command::Run { project, repo, resume, args } => {
             let project = resolve::project(&project)?;
             let repo = repo.map(|r| resolve::repo(&project, &r)).transpose()?;
-            docker::cmd_run(&project, repo.as_deref(), &args)
+            docker::cmd_run(&project, repo.as_deref(), resume.as_deref(), &args)
         }
         Command::Shell { project, repo } => {
             let project = resolve::project(&project)?;
