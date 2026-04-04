@@ -28,10 +28,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     // Random Bruce Lee quote on startup
-    let quote = BRUCE_LEE_QUOTES[std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .subsec_nanos() as usize % BRUCE_LEE_QUOTES.len()];
+    let quote = BRUCE_LEE_QUOTES[std::process::id() as usize % BRUCE_LEE_QUOTES.len()];
     eprintln!("\n  \"{}\" — Bruce Lee\n", quote);
 
     match cli.command {

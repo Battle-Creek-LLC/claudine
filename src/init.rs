@@ -256,16 +256,6 @@ pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) 
         }
     }
 
-    // Confirm
-    let proceed = Confirm::new()
-        .with_prompt("Proceed with init?")
-        .default(true)
-        .interact()?;
-
-    if !proceed {
-        anyhow::bail!("Init cancelled.");
-    }
-
     // Resolve SSH key
     let ssh_key = if result.ssh_key_needed {
         if let Some(key) = flag_ssh_key {
@@ -303,6 +293,16 @@ pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) 
     } else {
         flag_ssh_key.map(|s| s.to_string())
     };
+
+    // Confirm
+    let proceed = Confirm::new()
+        .with_prompt("Proceed with init?")
+        .default(true)
+        .interact()?;
+
+    if !proceed {
+        anyhow::bail!("Init cancelled.");
+    }
 
     // Convert agent repos to config repos, skipping repos with no remote
     let repos: Vec<config::RepoConfig> = result.repos.into_iter()
@@ -386,6 +386,63 @@ fn detect_ssh_key(urls: &[&str]) -> Option<String> {
     None
 }
 
+/// Parse ~/.ssh/config and return a map of Host alias → HostName.
+fn parse_ssh_aliases() -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return map,
+    };
+    let contents = match std::fs::read_to_string(home.join(".ssh/config")) {
+        Ok(c) => c,
+        Err(_) => return map,
+    };
+
+    let mut current_hosts: Vec<String> = Vec::new();
+    let mut hostname: Option<String> = None;
+
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("Host ").or_else(|| trimmed.strip_prefix("Host\t")) {
+            // Flush previous block
+            if let Some(ref hn) = hostname {
+                for host in &current_hosts {
+                    if !host.contains('*') {
+                        map.insert(host.clone(), hn.clone());
+                    }
+                }
+            }
+            current_hosts = rest.split_whitespace().map(|s| s.to_string()).collect();
+            hostname = None;
+        } else if let Some(rest) = trimmed.strip_prefix("HostName ").or_else(|| trimmed.strip_prefix("HostName\t")) {
+            hostname = Some(rest.trim().to_string());
+        }
+    }
+    // Flush final block
+    if let Some(ref hn) = hostname {
+        for host in &current_hosts {
+            if !host.contains('*') {
+                map.insert(host.clone(), hn.clone());
+            }
+        }
+    }
+
+    map
+}
+
+/// Replace SSH host aliases in a git remote URL with the real hostname.
+fn resolve_ssh_alias(url: &str, aliases: &std::collections::HashMap<String, String>) -> String {
+    if let Some(rest) = url.strip_prefix("git@") {
+        if let Some(colon_pos) = rest.find(':') {
+            let host = &rest[..colon_pos];
+            if let Some(real_host) = aliases.get(host) {
+                return format!("git@{}:{}", real_host, &rest[colon_pos + 1..]);
+            }
+        }
+    }
+    url.to_string()
+}
+
 /// Pre-scan a directory to collect git repo info and tech stack indicators.
 fn run_prescan(target: &std::path::Path) -> anyhow::Result<String> {
     let mut out = String::new();
@@ -418,17 +475,24 @@ fn run_prescan(target: &std::path::Path) -> anyhow::Result<String> {
     }
     repos.sort_by(|a, b| a.0.cmp(&b.0));
 
-    // Collect repo info
+    // Collect repo info, resolving SSH host aliases to real hostnames
+    let ssh_aliases = parse_ssh_aliases();
     let mut remotes: Vec<String> = Vec::new();
     out.push_str("=== REPOS ===\n");
     for (name, path) in &repos {
-        let remote = Command::new("git")
+        let raw_remote = Command::new("git")
             .args(["-C", &path.to_string_lossy(), "remote", "get-url", "origin"])
             .output()
             .ok()
             .filter(|o| o.status.success())
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
             .unwrap_or_else(|| "NONE".to_string());
+
+        let remote = if raw_remote != "NONE" {
+            resolve_ssh_alias(&raw_remote, &ssh_aliases)
+        } else {
+            raw_remote.clone()
+        };
 
         if remote != "NONE" {
             remotes.push(remote.clone());

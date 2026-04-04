@@ -280,22 +280,21 @@ pub fn cmd_list() -> anyhow::Result<()> {
     // Collect project info
     struct ProjectRow {
         name: String,
-        repo: String,
+        repos: Vec<String>,
         status: String,
     }
 
     let mut rows: Vec<ProjectRow> = Vec::new();
 
     for name in &projects {
-        let repo = match config::load_project(name) {
+        let repos = match config::load_project(name) {
             Ok(cfg) => {
                 cfg.repos
                     .iter()
-                    .map(|r| r.url.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                    .map(|r| r.dir.clone())
+                    .collect()
             }
-            Err(_) => "<config error>".to_string(),
+            Err(_) => vec!["<config error>".to_string()],
         };
 
         let status = if !project::volume_exists(name).unwrap_or(false) {
@@ -306,31 +305,37 @@ pub fn cmd_list() -> anyhow::Result<()> {
             "stopped".to_string()
         };
 
-        rows.push(ProjectRow { name: name.clone(), repo, status });
+        rows.push(ProjectRow { name: name.clone(), repos, status });
     }
 
     // Calculate column widths
-    let name_width = rows.iter().map(|r| r.name.len()).max().unwrap_or(4).max(4);
-    let repo_width = rows.iter().map(|r| r.repo.len()).max().unwrap_or(4).max(4);
+    let name_width = rows.iter().map(|r| r.name.len()).max().unwrap_or(7).max(7);
 
     // Print header
     println!(
-        "{:<name_w$}  {:<repo_w$}  STATUS",
-        "NAME",
-        "REPO",
+        "{:<name_w$}  {:<8}  REPOS",
+        "PROJECT",
+        "STATUS",
         name_w = name_width,
-        repo_w = repo_width,
     );
 
     // Print rows
     for row in &rows {
+        let repo_summary = if row.repos.len() <= 4 {
+            row.repos.join(", ")
+        } else {
+            format!("{}, {} (+{} more)",
+                row.repos[0],
+                row.repos[1],
+                row.repos.len() - 2,
+            )
+        };
         println!(
-            "{:<name_w$}  {:<repo_w$}  {}",
+            "{:<name_w$}  {:<8}  {}",
             row.name,
-            row.repo,
             row.status,
+            repo_summary,
             name_w = name_width,
-            repo_w = repo_width,
         );
     }
 
