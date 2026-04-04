@@ -2,14 +2,14 @@ mod cli;
 mod config;
 mod docker;
 mod init;
-mod plugin;
+mod layer;
 mod project;
 mod repo;
 mod resolve;
 
 use clap::{CommandFactory, Parser};
 use clap_complete::generate;
-use cli::{Cli, Command, PluginCommand, RepoCommand};
+use cli::{Cli, Command, LayerCommand, RepoCommand};
 
 const BRUCE_LEE_QUOTES: &[&str] = &[
     "Be water, my friend.",
@@ -35,13 +35,13 @@ fn main() -> anyhow::Result<()> {
         Command::Build { project: None } => docker::cmd_build(),
         Command::Build { project: Some(project) } => {
             let project = resolve::project(&project)?;
-            plugin::cmd_build_project(&project)
+            layer::cmd_build_project(&project)
         }
-        Command::Init { project, ssh_key, repos, plugins, agent } => {
+        Command::Init { project, ssh_key, repos, layers, agent } => {
             if let Some(agent_path) = agent {
                 init::cmd_init_agent(&project, &agent_path, ssh_key.as_deref())
             } else {
-                init::cmd_init(&project, ssh_key.as_deref(), &repos, &plugins)
+                init::cmd_init(&project, ssh_key.as_deref(), &repos, &layers)
             }
         }
         Command::Run { project, repo, resume, args } => {
@@ -59,20 +59,20 @@ fn main() -> anyhow::Result<()> {
             docker::cmd_destroy(&project)
         }
         Command::List => docker::cmd_list(),
-        Command::Plugin { command } => match command {
-            PluginCommand::Add { project, plugin } => {
+        Command::Layer { command } => match command {
+            LayerCommand::Add { project, layer } => {
                 let project = resolve::project(&project)?;
-                plugin::cmd_plugin_add(&project, &plugin)
+                layer::cmd_layer_add(&project, &layer)
             }
-            PluginCommand::Remove { project, plugin } => {
+            LayerCommand::Remove { project, layer } => {
                 let project = resolve::project(&project)?;
-                plugin::cmd_plugin_remove(&project, &plugin)
+                layer::cmd_layer_remove(&project, &layer)
             }
-            PluginCommand::List { project } => {
+            LayerCommand::List { project } => {
                 let project = resolve::project(&project)?;
-                plugin::cmd_plugin_list(&project)
+                layer::cmd_layer_list(&project)
             }
-            PluginCommand::Available => plugin::cmd_plugin_available(),
+            LayerCommand::Available => layer::cmd_layer_available(),
         },
         Command::Repo { command } => {
             let resolved = match command {

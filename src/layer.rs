@@ -2,14 +2,14 @@ use crate::{config, docker};
 
 const GO_VERSION: &str = "1.25.8";
 
-/// A built-in plugin representing a Dockerfile snippet that can be layered
+/// A built-in layer representing a Dockerfile snippet that can be layered
 /// on top of the base claudine image.
-pub struct Plugin {
+pub struct Layer {
     pub name: &'static str,
     pub description: &'static str,
-    /// Plugin names that satisfy a dependency. At least ONE must be present.
+    /// Layer names that satisfy a dependency. At least ONE must be present.
     pub requires: &'static [&'static str],
-    /// Build toolchain needed to compile this plugin from source.
+    /// Build toolchain needed to compile this layer from source.
     /// The Dockerfile generator installs and removes the toolchain automatically.
     pub build_tool: Option<BuildTool>,
     pub dockerfile: String,
@@ -21,118 +21,118 @@ pub enum BuildTool {
     Go,
 }
 
-/// Return the full catalog of built-in plugins.
-pub fn catalog() -> Vec<Plugin> {
+/// Return the full catalog of built-in layers.
+pub fn catalog() -> Vec<Layer> {
     vec![
-        Plugin {
+        Layer {
             name: "node-20",
             description: "Node.js 20.x LTS",
             requires: &[],
             build_tool: None,
             dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable".to_string(),
         },
-        Plugin {
+        Layer {
             name: "node-22",
             description: "Node.js 22.x LTS",
             requires: &[],
             build_tool: None,
             dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable".to_string(),
         },
-        Plugin {
+        Layer {
             name: "node-24",
             description: "Node.js 24.x",
             requires: &[],
             build_tool: None,
             dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable".to_string(),
         },
-        Plugin {
+        Layer {
             name: "gh",
             description: "GitHub CLI",
             requires: &[],
             build_tool: None,
             dockerfile: "RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \\\n       | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\" \\\n       > /etc/apt/sources.list.d/github-cli.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends gh \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
         },
-        Plugin {
+        Layer {
             name: "heroku",
             description: "Heroku CLI",
             requires: &["node-20", "node-22", "node-24"],
             build_tool: None,
             dockerfile: "RUN curl https://cli-assets.heroku.com/install.sh | sh".to_string(),
         },
-        Plugin {
+        Layer {
             name: "python-venv",
             description: "Python 3 virtual environment support",
             requires: &[],
             build_tool: None,
             dockerfile: "RUN apt-get update && apt-get install -y python3-venv \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
         },
-        Plugin {
+        Layer {
             name: "rust",
             description: "Rust toolchain (persistent, available at runtime)",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN apt-get update && apt-get install -y build-essential \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && export RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \\\n    && chmod -R a+rX /usr/local/rustup /usr/local/cargo \\\n    && echo 'export PATH=$PATH:/usr/local/cargo/bin' >> /etc/bash.bashrc \\\n    && echo 'export PATH=$PATH:/usr/local/cargo/bin' > /etc/profile.d/rust.sh \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin".to_string(),
+            dockerfile: "ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo\nRUN apt-get update && apt-get install -y build-essential \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \\\n    && chmod -R a+rX /usr/local/rustup /usr/local/cargo \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin\nENV PATH=\"/usr/local/cargo/bin:${PATH}\"".to_string(),
         },
-        Plugin {
+        Layer {
             name: "go",
             description: "Go toolchain (persistent, available at runtime)",
             requires: &[],
             build_tool: None,
             dockerfile: format!(
-                "RUN curl -fsSL https://go.dev/dl/go{ver}.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz \\\n    && echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/bash.bashrc \\\n    && echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/go.sh",
+                "RUN curl -fsSL https://go.dev/dl/go{ver}.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz\nENV PATH=\"/usr/local/go/bin:${{PATH}}\"",
                 ver = GO_VERSION
             ),
         },
-        Plugin {
+        Layer {
             name: "java",
             description: "OpenJDK 21 LTS runtime",
             requires: &[],
             build_tool: None,
             dockerfile: "RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main\" \\\n       > /etc/apt/sources.list.d/adoptium.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends temurin-21-jre \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
         },
-        Plugin {
+        Layer {
             name: "flyway",
             description: "Flyway database migration CLI",
             requires: &["java"],
             build_tool: None,
             dockerfile: "RUN FLYWAY_VERSION=$(curl -fsSL https://api.github.com/repos/flyway/flyway/releases/latest | grep '\"tag_name\"' | sed 's/.*\"flyway-\\(.*\\)\".*/\\1/') \\\n    && curl -fsSL \"https://download.red-gate.com/maven/release/com/redgate/flyway/flyway-commandline/${FLYWAY_VERSION}/flyway-commandline-${FLYWAY_VERSION}-linux-x64.tar.gz\" | tar -C /opt -xz \\\n    && ln -s /opt/flyway-${FLYWAY_VERSION}/flyway /usr/local/bin/flyway".to_string(),
         },
-        Plugin {
+        Layer {
             name: "lin",
             description: "Fast CLI for Linear (built from source)",
             requires: &[],
             build_tool: Some(BuildTool::Rust),
             dockerfile: "RUN git clone https://github.com/sprouted-dev/lin.git /tmp/lin \\\n    && cd /tmp/lin \\\n    && cargo build --release \\\n    && cp target/release/lin /usr/local/bin/lin \\\n    && chmod 755 /usr/local/bin/lin \\\n    && rm -rf /tmp/lin".to_string(),
         },
-        Plugin {
+        Layer {
             name: "glab",
             description: "GitLab CLI (built from source, jstockdi fork)",
             requires: &[],
             build_tool: Some(BuildTool::Go),
             dockerfile: "RUN git clone https://github.com/jstockdi/glab.git /tmp/glab \\\n    && cd /tmp/glab \\\n    && make build \\\n    && cp bin/glab /usr/local/bin/glab \\\n    && chmod 755 /usr/local/bin/glab \\\n    && rm -rf /tmp/glab".to_string(),
         },
-        Plugin {
+        Layer {
             name: "aws",
             description: "AWS CLI v2",
             requires: &[],
             build_tool: None,
             dockerfile: "RUN curl -fsSL \"https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip\" -o /tmp/awscliv2.zip \\\n    && unzip -q /tmp/awscliv2.zip -d /tmp \\\n    && /tmp/aws/install \\\n    && rm -rf /tmp/awscliv2.zip /tmp/aws".to_string(),
         },
-        Plugin {
+        Layer {
             name: "terraform",
             description: "Terraform CLI for infrastructure provisioning",
             requires: &[],
             build_tool: None,
             dockerfile: "RUN curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com bookworm main\" \\\n       > /etc/apt/sources.list.d/hashicorp.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends terraform \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
         },
-        Plugin {
+        Layer {
             name: "doctl",
             description: "DigitalOcean CLI",
             requires: &[],
             build_tool: None,
             dockerfile: "RUN DOCTL_VERSION=$(curl -fsSL https://api.github.com/repos/digitalocean/doctl/releases/latest | grep '\"tag_name\"' | sed 's/.*\"v\\(.*\\)\".*/\\1/') \\\n    && curl -fsSL \"https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-$(dpkg --print-architecture).tar.gz\" | tar -C /usr/local/bin -xz \\\n    && chmod 755 /usr/local/bin/doctl".to_string(),
         },
-        Plugin {
+        Layer {
             name: "rodney",
             description: "Chrome automation CLI (built from source, jstockdi fork)",
             requires: &[],
@@ -142,73 +142,73 @@ pub fn catalog() -> Vec<Plugin> {
     ]
 }
 
-/// Look up a plugin by name in the catalog.
-pub fn find(name: &str) -> Option<Plugin> {
+/// Look up a layer by name in the catalog.
+pub fn find(name: &str) -> Option<Layer> {
     catalog().into_iter().find(|p| p.name == name)
 }
 
-/// Check that the dependency requirements for a plugin are satisfied.
+/// Check that the dependency requirements for a layer are satisfied.
 ///
-/// For plugins with a non-empty `requires` list, at least one of the listed
-/// plugins must already be present in `installed`.
+/// For layers with a non-empty `requires` list, at least one of the listed
+/// layers must already be present in `installed`.
 pub fn check_requires(name: &str, installed: &[String]) -> anyhow::Result<()> {
-    let plugin = find(name)
-        .ok_or_else(|| anyhow::anyhow!("Unknown plugin '{}'.", name))?;
+    let layer = find(name)
+        .ok_or_else(|| anyhow::anyhow!("Unknown layer '{}'.", name))?;
 
-    if plugin.requires.is_empty() {
+    if layer.requires.is_empty() {
         return Ok(());
     }
 
-    let satisfied = plugin
+    let satisfied = layer
         .requires
         .iter()
         .any(|req| installed.iter().any(|i| i == req));
 
     if !satisfied {
-        let options = plugin.requires.join(", ");
+        let options = layer.requires.join(", ");
         anyhow::bail!(
-            "Plugin '{}' requires one of: {}. Install one first: claudine plugin add <project> {}",
+            "Layer '{}' requires one of: {}. Install one first: claudine layer add <project> {}",
             name,
             options,
-            plugin.requires[0],
+            layer.requires[0],
         );
     }
 
     Ok(())
 }
 
-/// Generate a Dockerfile from a list of plugin names.
+/// Generate a Dockerfile from a list of layer names.
 ///
-/// Plugins are ordered according to their position in the catalog, regardless
+/// Layers are ordered according to their position in the catalog, regardless
 /// of the order they were installed. This ensures deterministic builds.
-pub fn generate_dockerfile(plugins: &[String]) -> anyhow::Result<String> {
+pub fn generate_dockerfile(layers: &[String]) -> anyhow::Result<String> {
     let cat = catalog();
 
-    // Collect plugins in catalog order
-    let ordered: Vec<&Plugin> = cat
+    // Collect layers in catalog order
+    let ordered: Vec<&Layer> = cat
         .iter()
-        .filter(|p| plugins.iter().any(|name| name == p.name))
+        .filter(|p| layers.iter().any(|name| name == p.name))
         .collect();
 
-    // Verify all requested plugins exist
-    for name in plugins {
+    // Verify all requested layers exist
+    for name in layers {
         if !cat.iter().any(|p| p.name == name) {
-            anyhow::bail!("Unknown plugin '{}'.", name);
+            anyhow::bail!("Unknown layer '{}'.", name);
         }
     }
 
     let needs_rust = ordered.iter().any(|p| p.build_tool == Some(BuildTool::Rust))
-        && !plugins.iter().any(|n| n == "rust");
+        && !layers.iter().any(|n| n == "rust");
     let needs_go = ordered.iter().any(|p| p.build_tool == Some(BuildTool::Go))
-        && !plugins.iter().any(|n| n == "go");
+        && !layers.iter().any(|n| n == "go");
 
     let mut lines = vec!["FROM claudine:latest".to_string()];
 
-    // Non-compiled plugins first
-    for plugin in ordered.iter().filter(|p| p.build_tool.is_none()) {
+    // Non-compiled layers first
+    for layer in ordered.iter().filter(|p| p.build_tool.is_none()) {
         lines.push(String::new());
-        lines.push(format!("# Plugin: {}", plugin.name));
-        lines.push(plugin.dockerfile.to_string());
+        lines.push(format!("# Layer: {}", layer.name));
+        lines.push(layer.dockerfile.to_string());
     }
 
     // Install build toolchains as needed
@@ -229,20 +229,20 @@ pub fn generate_dockerfile(plugins: &[String]) -> anyhow::Result<String> {
         lines.push(install_parts.join(" \\\n"));
     }
 
-    // Compiled plugins (Rust first, then Go — catalog order)
+    // Compiled layers (Rust first, then Go — catalog order)
     let compiled: Vec<_> = ordered.iter().filter(|p| p.build_tool.is_some()).collect();
-    for plugin in &compiled {
+    for layer in &compiled {
         lines.push(String::new());
-        lines.push(format!("# Plugin: {}", plugin.name));
-        // Compiled plugins need PATH set for their build toolchain
-        if plugin.build_tool == Some(BuildTool::Go) {
-            let dockerfile = plugin.dockerfile.replacen("RUN ", "RUN export PATH=$PATH:/usr/local/go/bin && ", 1);
+        lines.push(format!("# Layer: {}", layer.name));
+        // Compiled layers need PATH set for their build toolchain
+        if layer.build_tool == Some(BuildTool::Go) {
+            let dockerfile = layer.dockerfile.replacen("RUN ", "RUN export PATH=$PATH:/usr/local/go/bin && ", 1);
             lines.push(dockerfile);
-        } else if plugin.build_tool == Some(BuildTool::Rust) {
-            let dockerfile = plugin.dockerfile.replacen("RUN ", "RUN export PATH=$PATH:/usr/local/cargo/bin && ", 1);
+        } else if layer.build_tool == Some(BuildTool::Rust) {
+            let dockerfile = layer.dockerfile.replacen("RUN ", "RUN export PATH=$PATH:/usr/local/cargo/bin && ", 1);
             lines.push(dockerfile);
         } else {
-            lines.push(plugin.dockerfile.to_string());
+            lines.push(layer.dockerfile.to_string());
         }
     }
 
@@ -270,50 +270,50 @@ pub fn generate_dockerfile(plugins: &[String]) -> anyhow::Result<String> {
     Ok(lines.join("\n"))
 }
 
-/// Rebuild a project's plugin image from its current config.
+/// Rebuild a project's layer image from its current config.
 pub fn cmd_build_project(project: &str) -> anyhow::Result<()> {
     let project_config = config::load_project(project)?;
 
-    let plugins = project_config
-        .plugins
+    let layers = project_config
+        .layers
         .as_ref()
         .filter(|p| !p.is_empty())
-        .ok_or_else(|| anyhow::anyhow!("Project '{}' has no plugins installed.", project))?;
+        .ok_or_else(|| anyhow::anyhow!("Project '{}' has no layers installed.", project))?;
 
-    let dockerfile = generate_dockerfile(plugins)?;
+    let dockerfile = generate_dockerfile(layers)?;
     docker::cmd_build_project(project, &dockerfile)?;
 
     println!("Project '{}' image rebuilt.", project);
     Ok(())
 }
 
-/// Add a plugin to a project.
+/// Add a layer to a project.
 ///
-/// Validates the plugin exists, checks dependency requirements, updates the
+/// Validates the layer exists, checks dependency requirements, updates the
 /// project config, generates a new Dockerfile, and builds the project image.
-pub fn cmd_plugin_add(project: &str, plugin: &str) -> anyhow::Result<()> {
-    // Validate plugin exists
-    if find(plugin).is_none() {
+pub fn cmd_layer_add(project: &str, layer: &str) -> anyhow::Result<()> {
+    // Validate layer exists
+    if find(layer).is_none() {
         anyhow::bail!(
-            "Unknown plugin '{}'. Run 'claudine plugin available' to see options.",
-            plugin,
+            "Unknown layer '{}'. Run 'claudine layer available' to see options.",
+            layer,
         );
     }
 
     let mut project_config = config::load_project(project)?;
-    let plugins = project_config.plugins.get_or_insert_with(Vec::new);
+    let layers = project_config.layers.get_or_insert_with(Vec::new);
 
     // Check if already installed
-    if plugins.iter().any(|p| p == plugin) {
-        println!("Plugin '{}' is already installed in project '{}'.", plugin, project);
+    if layers.iter().any(|p| p == layer) {
+        println!("Layer '{}' is already installed in project '{}'.", layer, project);
         return Ok(());
     }
 
     // Check dependency requirements
-    check_requires(plugin, plugins)?;
+    check_requires(layer, layers)?;
 
-    // Add the plugin
-    plugins.push(plugin.to_string());
+    // Add the layer
+    layers.push(layer.to_string());
 
     // Set the project-specific image
     project_config.image = Some(config::ImageConfig {
@@ -323,72 +323,72 @@ pub fn cmd_plugin_add(project: &str, plugin: &str) -> anyhow::Result<()> {
     config::save_project(project, &project_config)?;
 
     // Generate Dockerfile and build
-    let dockerfile = generate_dockerfile(project_config.plugins.as_ref().unwrap())?;
+    let dockerfile = generate_dockerfile(project_config.layers.as_ref().unwrap())?;
     docker::cmd_build_project(project, &dockerfile)?;
 
-    println!("Plugin '{}' added to project '{}'.", plugin, project);
+    println!("Layer '{}' added to project '{}'.", layer, project);
     Ok(())
 }
 
-/// Remove a plugin from a project.
+/// Remove a layer from a project.
 ///
-/// Updates the project config and rebuilds the project image. If no plugins
+/// Updates the project config and rebuilds the project image. If no layers
 /// remain, reverts the image to `claudine:latest`.
-pub fn cmd_plugin_remove(project: &str, plugin: &str) -> anyhow::Result<()> {
+pub fn cmd_layer_remove(project: &str, layer: &str) -> anyhow::Result<()> {
     let mut project_config = config::load_project(project)?;
 
     {
-        let plugins = project_config.plugins.get_or_insert_with(Vec::new);
+        let layers = project_config.layers.get_or_insert_with(Vec::new);
 
-        let index = plugins
+        let index = layers
             .iter()
-            .position(|p| p == plugin)
+            .position(|p| p == layer)
             .ok_or_else(|| {
                 anyhow::anyhow!(
-                    "Plugin '{}' is not installed in project '{}'.",
-                    plugin,
+                    "Layer '{}' is not installed in project '{}'.",
+                    layer,
                     project,
                 )
             })?;
 
-        plugins.remove(index);
+        layers.remove(index);
     }
 
     let remaining = project_config
-        .plugins
+        .layers
         .as_ref()
         .map(|p| p.is_empty())
         .unwrap_or(true);
 
     if remaining {
         // Revert to base image
-        project_config.plugins = None;
+        project_config.layers = None;
         project_config.image = None;
         config::save_project(project, &project_config)?;
-        println!("No plugins remaining. Image reverted to claudine:latest.");
+        println!("No layers remaining. Image reverted to claudine:latest.");
     } else {
         project_config.image = Some(config::ImageConfig {
             name: format!("claudine:{}", project),
         });
         config::save_project(project, &project_config)?;
 
-        let plugins = project_config.plugins.as_ref().unwrap();
-        let dockerfile = generate_dockerfile(plugins)?;
+        let layers = project_config.layers.as_ref().unwrap();
+        let dockerfile = generate_dockerfile(layers)?;
         docker::cmd_build_project(project, &dockerfile)?;
     }
 
-    println!("Plugin '{}' removed from project '{}'.", plugin, project);
+    println!("Layer '{}' removed from project '{}'.", layer, project);
     Ok(())
 }
 
-/// List plugins installed in a project.
-pub fn cmd_plugin_list(project: &str) -> anyhow::Result<()> {
+/// List layers installed in a project.
+pub fn cmd_layer_list(project: &str) -> anyhow::Result<()> {
     let project_config = config::load_project(project)?;
 
-    match &project_config.plugins {
-        Some(plugins) if !plugins.is_empty() => {
-            println!("Plugins for project '{}':", project);
-            for name in plugins {
+    match &project_config.layers {
+        Some(layers) if !layers.is_empty() => {
+            println!("Layers for project '{}':", project);
+            for name in layers {
                 if let Some(p) = find(name) {
                     println!("  {} - {}", p.name, p.description);
                 } else {
@@ -397,25 +397,25 @@ pub fn cmd_plugin_list(project: &str) -> anyhow::Result<()> {
             }
         }
         _ => {
-            println!("No plugins installed for project '{}'.", project);
+            println!("No layers installed for project '{}'.", project);
         }
     }
 
     Ok(())
 }
 
-/// List all available plugins in the catalog.
-pub fn cmd_plugin_available() -> anyhow::Result<()> {
+/// List all available layers in the catalog.
+pub fn cmd_layer_available() -> anyhow::Result<()> {
     let cat = catalog();
 
-    println!("Available plugins:");
-    for plugin in &cat {
-        let deps = if plugin.requires.is_empty() {
+    println!("Available layers:");
+    for layer in &cat {
+        let deps = if layer.requires.is_empty() {
             String::new()
         } else {
-            format!(" (requires one of: {})", plugin.requires.join(", "))
+            format!(" (requires one of: {})", layer.requires.join(", "))
         };
-        println!("  {:<15} {}{}", plugin.name, plugin.description, deps);
+        println!("  {:<15} {}{}", layer.name, layer.description, deps);
     }
 
     Ok(())
@@ -426,14 +426,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn find_existing_plugin() {
+    fn find_existing_layer() {
         assert!(find("node-20").is_some());
         assert!(find("heroku").is_some());
         assert!(find("rust").is_some());
     }
 
     #[test]
-    fn find_unknown_plugin() {
+    fn find_unknown_layer() {
         assert!(find("does-not-exist").is_none());
     }
 
@@ -468,20 +468,20 @@ mod tests {
 
     #[test]
     fn generate_dockerfile_single() {
-        let plugins = vec!["node-20".to_string()];
-        let result = generate_dockerfile(&plugins).unwrap();
+        let layers = vec!["node-20".to_string()];
+        let result = generate_dockerfile(&layers).unwrap();
         assert!(result.starts_with("FROM claudine:latest"));
-        assert!(result.contains("# Plugin: node-20"));
+        assert!(result.contains("# Layer: node-20"));
         assert!(result.contains("setup_20.x"));
     }
 
     #[test]
     fn generate_dockerfile_multiple_ordered() {
         // Install heroku first, node-20 second — output should be node-20 first
-        let plugins = vec!["heroku".to_string(), "node-20".to_string()];
-        let result = generate_dockerfile(&plugins).unwrap();
-        let node_pos = result.find("# Plugin: node-20").unwrap();
-        let heroku_pos = result.find("# Plugin: heroku").unwrap();
+        let layers = vec!["heroku".to_string(), "node-20".to_string()];
+        let result = generate_dockerfile(&layers).unwrap();
+        let node_pos = result.find("# Layer: node-20").unwrap();
+        let heroku_pos = result.find("# Layer: heroku").unwrap();
         assert!(
             node_pos < heroku_pos,
             "node-20 should appear before heroku in the Dockerfile"
@@ -490,21 +490,21 @@ mod tests {
 
     #[test]
     fn generate_dockerfile_unknown() {
-        let plugins = vec!["nonexistent".to_string()];
-        assert!(generate_dockerfile(&plugins).is_err());
+        let layers = vec!["nonexistent".to_string()];
+        assert!(generate_dockerfile(&layers).is_err());
     }
 
     #[test]
     fn generate_dockerfile_empty() {
-        let plugins: Vec<String> = vec![];
-        let result = generate_dockerfile(&plugins).unwrap();
+        let layers: Vec<String> = vec![];
+        let result = generate_dockerfile(&layers).unwrap();
         assert!(result.starts_with("FROM claudine:latest"));
         // Should just be the FROM line and a trailing newline
-        assert!(!result.contains("# Plugin:"));
+        assert!(!result.contains("# Layer:"));
     }
 
     #[test]
-    fn catalog_has_expected_plugins() {
+    fn catalog_has_expected_layers() {
         let cat = catalog();
         let names: Vec<&str> = cat.iter().map(|p| p.name).collect();
         assert!(names.contains(&"node-20"));
@@ -522,13 +522,13 @@ mod tests {
     }
 
     #[test]
-    fn go_plugin_skips_build_toolchain() {
-        let plugins = vec!["go".to_string(), "rodney".to_string()];
-        let result = generate_dockerfile(&plugins).unwrap();
+    fn go_layer_skips_build_toolchain() {
+        let layers = vec!["go".to_string(), "rodney".to_string()];
+        let result = generate_dockerfile(&layers).unwrap();
         assert!(!result.contains("Build phase: install build toolchains"));
         assert!(!result.contains("Cleanup: remove build toolchains"));
-        assert!(result.contains("# Plugin: go"));
-        assert!(result.contains("# Plugin: rodney"));
+        assert!(result.contains("# Layer: go"));
+        assert!(result.contains("# Layer: rodney"));
     }
 
     #[test]

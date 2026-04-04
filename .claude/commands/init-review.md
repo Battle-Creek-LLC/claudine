@@ -2,17 +2,17 @@
 
 Review the directory at `$ARGUMENTS` and produce a complete claudine project initialization plan.
 
-## Available Claudine Plugins
+## Available Claudine Layers
 
-Map detected technologies to these exact plugin names:
+Map detected technologies to these exact layer names:
 
-| Plugin | Matches |
+| Layer | Matches |
 |--------|---------|
 | `node-20` | Node.js 20.x LTS |
 | `node-22` | Node.js 22.x LTS |
 | `node-24` | Node.js 24.x |
 | `gh` | GitHub CLI (recommend when repos use GitHub) |
-| `heroku` | Heroku CLI (requires a node plugin) |
+| `heroku` | Heroku CLI (requires a node layer) |
 | `python-venv` | Python 3 venv support |
 | `rust` | Rust toolchain |
 | `go` | Go toolchain |
@@ -42,16 +42,16 @@ For each repo, look for these indicators:
 - `pyproject.toml`, `requirements.txt`, `Pipfile`, `setup.py`, or `*.py` files → Python
 - `Cargo.toml` → Rust
 - `go.mod` → Go
-- `Gemfile` → Ruby (no plugin — note as unsupported)
+- `Gemfile` → Ruby (no layer — note as unsupported)
 - `Dockerfile` or `docker-compose.yml` → Docker usage (built into base image)
 
 **Services & Infrastructure:**
-- `.github/` directory → GitHub (recommend `gh` plugin)
-- `.gitlab-ci.yml` → GitLab (recommend `glab` plugin)
-- AWS references (`aws`, `boto3`, `terraform` with aws provider, `.aws/`, `samconfig`, `serverless.yml`) → AWS (recommend `aws` plugin)
-- `heroku.yml`, `Procfile`, `app.json` → Heroku (recommend `heroku` plugin)
-- `.linear/`, linear references in configs → Linear (recommend `lin` plugin)
-- `playwright.config.*`, `puppeteer` references → Browser automation (recommend `rodney` plugin)
+- `.github/` directory → GitHub (recommend `gh` layer)
+- `.gitlab-ci.yml` → GitLab (recommend `glab` layer)
+- AWS references (`aws`, `boto3`, `terraform` with aws provider, `.aws/`, `samconfig`, `serverless.yml`) → AWS (recommend `aws` layer)
+- `heroku.yml`, `Procfile`, `app.json` → Heroku (recommend `heroku` layer)
+- `.linear/`, linear references in configs → Linear (recommend `lin` layer)
+- `playwright.config.*`, `puppeteer` references → Browser automation (recommend `rodney` layer)
 
 **Environment & Config:**
 - `.env.example`, `.env.sample`, or `.env.template` files → document required env vars
@@ -85,9 +85,9 @@ One paragraph describing the project: what it is, its tech stack, and how many r
 ### Repos Detected
 Table with columns: Directory | Remote URL | Branch | Transport (SSH/HTTPS)
 
-### Recommended Plugins
-Table with columns: Plugin | Reason
-Only include plugins that are actually needed. Include dependency notes (e.g., heroku requires a node plugin).
+### Recommended Layers
+Table with columns: Layer | Reason
+Only include layers that are actually needed. Include dependency notes (e.g., heroku requires a node layer).
 
 ### claudine init Command
 Generate the exact `claudine init` command with all flags. Use this format:
@@ -97,11 +97,11 @@ claudine init <project-name> \
   --ssh-key ~/.ssh/<key> \
   --repo <url1> \
   --repo <url2> \
-  --plugin <plugin1> \
-  --plugin <plugin2>
+  --layer <layer1> \
+  --layer <layer2>
 ```
 
-Use a sensible project name derived from the folder name. Plugin order matters — dependencies must come before dependents (e.g., `node-20` before `heroku`).
+Use a sensible project name derived from the folder name. Layer order matters — dependencies must come before dependents (e.g., `node-20` before `heroku`).
 
 If SSH is not needed, omit the `--ssh-key` flag.
 
@@ -115,13 +115,13 @@ Suggest content for a project-level CLAUDE.md that should be placed in each repo
 - Development workflow (docker compose commands, migration commands, test commands)
 - Any existing CLAUDE.md content that should be preserved or extended
 
-### Suggested New Plugins
-If the project uses technologies that would benefit from a claudine plugin but none exists in the available list (e.g., Ruby, Java, .NET, Terraform, Kubernetes, etc.), list them here with:
-- A proposed plugin name
+### Suggested New Layers
+If the project uses technologies that would benefit from a claudine layer but none exists in the available list (e.g., Ruby, Java, .NET, Terraform, Kubernetes, etc.), list them here with:
+- A proposed layer name
 - What it would install
 - Why the project needs it
 
-This helps identify gaps in claudine's plugin catalog.
+This helps identify gaps in claudine's layer catalog.
 
 ### Warnings
 Flag anything that might cause issues:

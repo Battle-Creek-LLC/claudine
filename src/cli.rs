@@ -22,11 +22,11 @@ pub enum Command {
         #[arg(long = "repo", conflicts_with = "agent")]
         repos: Vec<String>,
 
-        /// Plugins to install (repeatable)
-        #[arg(long = "plugin", conflicts_with = "agent")]
-        plugins: Vec<String>,
+        /// Layers to install (repeatable)
+        #[arg(long = "layer", conflicts_with = "agent")]
+        layers: Vec<String>,
 
-        /// Analyze a local folder with Claude to discover repos and plugins
+        /// Analyze a local folder with Claude to discover repos and layers
         #[arg(long)]
         agent: Option<String>,
     },
@@ -70,15 +70,15 @@ pub enum Command {
         command: RepoCommand,
     },
 
-    /// Manage plugins for a project
-    Plugin {
+    /// Manage layers for a project
+    Layer {
         #[command(subcommand)]
-        command: PluginCommand,
+        command: LayerCommand,
     },
 
-    /// Build the claudine Docker image (or a project's plugin image)
+    /// Build the claudine Docker image (or a project's layer image)
     Build {
-        /// Project name (rebuilds project plugin image; omit for base image)
+        /// Project name (rebuilds project layer image; omit for base image)
         project: Option<String>,
     },
 
@@ -93,27 +93,27 @@ pub enum Command {
 }
 
 #[derive(Subcommand)]
-pub enum PluginCommand {
-    /// Add a plugin to a project
+pub enum LayerCommand {
+    /// Add a layer to a project
     Add {
         /// Project name
         project: String,
-        /// Plugin name
-        plugin: String,
+        /// Layer name
+        layer: String,
     },
-    /// Remove a plugin from a project
+    /// Remove a layer from a project
     Remove {
         /// Project name
         project: String,
-        /// Plugin name
-        plugin: String,
+        /// Layer name
+        layer: String,
     },
-    /// List plugins installed in a project
+    /// List layers installed in a project
     List {
         /// Project name
         project: String,
     },
-    /// Show all available plugins
+    /// Show all available layers
     Available,
 }
 

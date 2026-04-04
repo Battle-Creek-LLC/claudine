@@ -5,11 +5,11 @@ use std::process::Command;
 use dialoguer::{Confirm, Input};
 use serde::Deserialize;
 
-use crate::{config, plugin, project};
+use crate::{config, layer, project};
 
 /// Initialize a project. If `flag_repos` are provided, runs non-interactively.
 /// Otherwise, prompts for input (requires a TTY).
-pub fn cmd_init(name: &str, flag_ssh_key: Option<&str>, flag_repos: &[String], flag_plugins: &[String]) -> anyhow::Result<()> {
+pub fn cmd_init(name: &str, flag_ssh_key: Option<&str>, flag_repos: &[String], flag_layers: &[String]) -> anyhow::Result<()> {
     project::validate_name(name)?;
 
     let interactive = flag_repos.is_empty();
@@ -65,19 +65,19 @@ pub fn cmd_init(name: &str, flag_ssh_key: Option<&str>, flag_repos: &[String], f
         None
     };
 
-    // Validate plugins upfront
-    for p in flag_plugins {
-        if plugin::find(p).is_none() {
+    // Validate layers upfront
+    for p in flag_layers {
+        if layer::find(p).is_none() {
             anyhow::bail!(
-                "Unknown plugin '{}'. Run 'claudine plugin available' to see options.",
+                "Unknown layer '{}'. Run 'claudine layer available' to see options.",
                 p
             );
         }
     }
-    // Check plugin requirements (order matters — check in order they're given)
-    for (i, p) in flag_plugins.iter().enumerate() {
-        let installed_so_far: Vec<String> = flag_plugins[..i].to_vec();
-        plugin::check_requires(p, &installed_so_far)?;
+    // Check layer requirements (order matters — check in order they're given)
+    for (i, p) in flag_layers.iter().enumerate() {
+        let installed_so_far: Vec<String> = flag_layers[..i].to_vec();
+        layer::check_requires(p, &installed_so_far)?;
     }
 
     // Collect repos
@@ -87,7 +87,7 @@ pub fn cmd_init(name: &str, flag_ssh_key: Option<&str>, flag_repos: &[String], f
         collect_repos_from_flags(flag_repos)?
     };
 
-    execute_init(name, ssh_key, repos, flag_plugins.to_vec())
+    execute_init(name, ssh_key, repos, flag_layers.to_vec())
 }
 
 // -- Agent-assisted init --------------------------------------------------
@@ -102,7 +102,7 @@ struct AgentRepo {
 }
 
 #[derive(Deserialize)]
-struct SuggestedPlugin {
+struct SuggestedLayer {
     name: String,
     reason: String,
 }
@@ -110,9 +110,9 @@ struct SuggestedPlugin {
 #[derive(Deserialize)]
 struct AgentResult {
     repos: Vec<AgentRepo>,
-    plugins: Vec<String>,
+    layers: Vec<String>,
     #[serde(default)]
-    suggested_plugins: Vec<SuggestedPlugin>,
+    suggested_layers: Vec<SuggestedLayer>,
     ssh_key_needed: bool,
 }
 
@@ -171,14 +171,14 @@ pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) 
         anyhow::bail!("No repositories found in the analysis.");
     }
 
-    // Validate all suggested plugins exist
-    for p in &result.plugins {
-        if plugin::find(p).is_none() {
-            eprintln!("Warning: agent suggested unknown plugin '{}', skipping.", p);
+    // Validate all suggested layers exist
+    for p in &result.layers {
+        if layer::find(p).is_none() {
+            eprintln!("Warning: agent suggested unknown layer '{}', skipping.", p);
         }
     }
-    let mut plugins: Vec<String> = result.plugins.iter()
-        .filter(|p| plugin::find(p).is_some())
+    let mut layers: Vec<String> = result.layers.iter()
+        .filter(|p| layer::find(p).is_some())
         .cloned()
         .collect();
 
@@ -193,10 +193,10 @@ pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) 
             None => println!("          {} (local only, skipping)", repo.dir),
         }
     }
-    if plugins.is_empty() {
-        println!("Plugins:  (none)");
+    if layers.is_empty() {
+        println!("Layers:   (none)");
     } else {
-        println!("Plugins:  {}", plugins.join(", "));
+        println!("Layers:   {}", layers.join(", "));
     }
     let prescan_ssh_key = scan.lines()
         .skip_while(|l| !l.starts_with("=== SSH ==="))
@@ -213,25 +213,25 @@ pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) 
         println!("SSH:      not needed");
     }
 
-    if !result.suggested_plugins.is_empty() {
+    if !result.suggested_layers.is_empty() {
         println!("\n--- Suggested New Plugins ---");
-        println!("The following technologies were detected but have no claudine plugin yet:");
-        for suggestion in &result.suggested_plugins {
+        println!("The following technologies were detected but have no claudine layer yet:");
+        for suggestion in &result.suggested_layers {
             println!("  {} — {}", suggestion.name, suggestion.reason);
         }
     }
 
-    // Offer to add extra plugins
-    let catalog = plugin::catalog();
+    // Offer to add extra layers
+    let catalog = layer::catalog();
     let available: Vec<&str> = catalog.iter()
         .map(|p| p.name)
-        .filter(|n| !plugins.contains(&n.to_string()))
+        .filter(|n| !layers.contains(&n.to_string()))
         .collect();
     if !available.is_empty() {
-        println!("\nAvailable plugins: {}", available.join(", "));
+        println!("\nAvailable layers: {}", available.join(", "));
         loop {
             let extra: String = Input::new()
-                .with_prompt("Add plugin (enter to continue)")
+                .with_prompt("Add layer (enter to continue)")
                 .default(String::new())
                 .show_default(false)
                 .interact_text()?;
@@ -241,17 +241,17 @@ pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) 
                 break;
             }
 
-            if plugins.contains(&trimmed.to_string()) {
+            if layers.contains(&trimmed.to_string()) {
                 println!("'{}' is already included.", trimmed);
-            } else if plugin::find(trimmed).is_some() {
-                if let Err(e) = plugin::check_requires(trimmed, &plugins) {
+            } else if layer::find(trimmed).is_some() {
+                if let Err(e) = layer::check_requires(trimmed, &layers) {
                     println!("{}", e);
                 } else {
-                    plugins.push(trimmed.to_string());
+                    layers.push(trimmed.to_string());
                     println!("Added '{}'.", trimmed);
                 }
             } else {
-                println!("Unknown plugin '{}'. Available: {}", trimmed, available.join(", "));
+                println!("Unknown layer '{}'. Available: {}", trimmed, available.join(", "));
             }
         }
     }
@@ -316,7 +316,7 @@ pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) 
         })
         .collect();
 
-    execute_init(name, ssh_key, repos, plugins)
+    execute_init(name, ssh_key, repos, layers)
 }
 
 /// Try to detect the SSH key for a set of git remote URLs by parsing ~/.ssh/config.
@@ -664,9 +664,9 @@ fn run_prescan(target: &std::path::Path) -> anyhow::Result<String> {
         out.push_str(&format!("\n=== SSH ===\n{}\n", key));
     }
 
-    // List available plugins from catalog
-    out.push_str("\n=== PLUGINS ===\n");
-    for p in plugin::catalog() {
+    // List available layers from catalog
+    out.push_str("\n=== LAYERS ===\n");
+    for p in layer::catalog() {
         if p.requires.is_empty() {
             out.push_str(&format!("{} — {}\n", p.name, p.description));
         } else {
@@ -782,12 +782,12 @@ fn extract_agent_json(text: &str) -> anyhow::Result<AgentResult> {
 
 // -- Shared init execution ------------------------------------------------
 
-/// Execute the init steps: create volume, setup home, clone repos, build plugins.
+/// Execute the init steps: create volume, setup home, clone repos, build layers.
 fn execute_init(
     name: &str,
     ssh_key: Option<String>,
     repos: Vec<config::RepoConfig>,
-    plugins: Vec<String>,
+    layers: Vec<String>,
 ) -> anyhow::Result<()> {
     // Create volume if it does not already exist
     if !project::volume_exists(name)? {
@@ -804,12 +804,12 @@ fn execute_init(
     }
 
     // Build and save project config
-    let plugins_opt = if plugins.is_empty() {
+    let layers_opt = if layers.is_empty() {
         None
     } else {
-        Some(plugins)
+        Some(layers)
     };
-    let image_override = if plugins_opt.is_some() {
+    let image_override = if layers_opt.is_some() {
         Some(config::ImageConfig { name: format!("claudine:{}", name) })
     } else {
         None
@@ -817,15 +817,15 @@ fn execute_init(
     let project_config = config::ProjectConfig {
         repos: repos.clone(),
         ssh_key,
-        plugins: plugins_opt,
+        layers: layers_opt,
         image: image_override,
     };
     config::save_project(name, &project_config)?;
 
-    // Build project image if plugins were specified (must happen before setup_home)
-    if let Some(ref plugin_list) = project_config.plugins {
-        if !plugin_list.is_empty() {
-            let dockerfile = plugin::generate_dockerfile(plugin_list)?;
+    // Build project image if layers were specified (must happen before setup_home)
+    if let Some(ref layer_list) = project_config.layers {
+        if !layer_list.is_empty() {
+            let dockerfile = layer::generate_dockerfile(layer_list)?;
             crate::docker::cmd_build_project(name, &dockerfile)?;
         }
     }

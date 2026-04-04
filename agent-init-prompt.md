@@ -6,15 +6,15 @@ Do NOT use any tools. All the information you need is in the prescan data.
 - `=== REPOS ===` lines: `dir|remote-url|current-branch|recent-branches` (recent branches are comma-separated, up to 10, most recent first)
 - `=== STACK ===` lines: `dir: indicator1 indicator2 ...`
 - `=== SSH ===` (optional): detected SSH key path from ~/.ssh/config — if present, `ssh_key_needed` should be `true`
-- `=== PLUGINS ===`: available claudine plugins with descriptions and dependencies — use ONLY these exact names
+- `=== LAYERS ===`: available claudine layers with descriptions and dependencies — use ONLY these exact names
 
 ## Rules
 - `git@` remotes mean SSH is required
-- Dependencies must come before dependents in the plugins list (e.g. `node-20` before `heroku`)
-- If tech is detected that has no matching plugin, add it to `suggested_plugins`
-- Only include plugins clearly needed by the project
+- Dependencies must come before dependents in the layers list (e.g. `node-20` before `heroku`)
+- If tech is detected that has no matching layer, add it to `suggested_layers`
+- Only include layers clearly needed by the project
 - Tech stack detection applies to ALL repos, including local-only ones without remotes
-- Docker is already available in the base image — do NOT suggest a docker plugin
+- Docker is already available in the base image — do NOT suggest a docker layer
 - `repos[].dir` should be the repo name from the URL (e.g. `git@host:Org/my-repo.git` → `my-repo`), not the local directory name
 - `repos[].branch` should always be `null` — clone the default branch, not the currently checked out branch
 - `frontend` or `playwright` in stack indicators → recommend `rodney` (Chrome automation)
@@ -30,8 +30,8 @@ Write 2-3 lines summarizing the project, then output this JSON as the LAST fence
   "repos": [
     {"url": "remote-url", "dir": "repo-name-from-url", "branch": null}
   ],
-  "plugins": ["plugin-name"],
-  "suggested_plugins": [
+  "layers": ["layer-name"],
+  "suggested_layers": [
     {"name": "proposed-name", "reason": "why"}
   ],
   "ssh_key_needed": true
