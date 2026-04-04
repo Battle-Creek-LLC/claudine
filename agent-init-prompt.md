@@ -16,6 +16,7 @@ Do NOT use any tools. All the information you need is in the prescan data.
 - Tech stack detection applies to ALL repos, including local-only ones without remotes
 - Docker is already available in the base image — do NOT suggest a docker plugin
 - `repos[].dir` should be the repo name from the URL (e.g. `git@host:Org/my-repo.git` → `my-repo`), not the local directory name
+- `repos[].branch` should always be `null` — clone the default branch, not the currently checked out branch
 - `frontend` or `playwright` in stack indicators → recommend `rodney` (Chrome automation)
 - Branch names like `APP-123` or `PROJ-456-description` indicate Linear issue tracking → recommend `lin`
 - GitHub remotes → recommend `gh`; GitLab remotes → recommend `glab`
@@ -27,7 +28,7 @@ Write 2-3 lines summarizing the project, then output this JSON as the LAST fence
 ```json
 {
   "repos": [
-    {"url": "remote-url", "dir": "repo-name-from-url", "branch": "branch-or-null"}
+    {"url": "remote-url", "dir": "repo-name-from-url", "branch": null}
   ],
   "plugins": ["plugin-name"],
   "suggested_plugins": [

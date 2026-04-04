@@ -304,11 +304,12 @@ pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) 
         anyhow::bail!("Init cancelled.");
     }
 
-    // Convert agent repos to config repos, skipping repos with no remote
+    // Convert agent repos to config repos, resolving SSH aliases and skipping repos with no remote
+    let ssh_aliases = parse_ssh_aliases();
     let repos: Vec<config::RepoConfig> = result.repos.into_iter()
         .filter_map(|r| {
             r.url.map(|url| config::RepoConfig {
-                url,
+                url: resolve_ssh_alias(&url, &ssh_aliases),
                 dir: r.dir,
                 branch: r.branch,
             })
@@ -327,51 +328,9 @@ fn detect_ssh_key(urls: &[&str]) -> Option<String> {
     let home = dirs::home_dir()?;
     let ssh_config = home.join(".ssh/config");
 
-    // Extract unique SSH hostnames from git@ URLs
-    let hosts: Vec<&str> = urls.iter()
-        .filter_map(|url| {
-            url.strip_prefix("git@")
-                .and_then(|rest| rest.split(':').next())
-        })
-        .collect();
-
-    if hosts.is_empty() {
-        return None;
-    }
-
-    // Parse ~/.ssh/config for matching Host entries
     if let Ok(contents) = std::fs::read_to_string(&ssh_config) {
-        let mut current_hosts: Vec<String> = Vec::new();
-        let mut identity_file: Option<String> = None;
-
-        for line in contents.lines() {
-            let trimmed = line.trim();
-            if let Some(rest) = trimmed.strip_prefix("Host ").or_else(|| trimmed.strip_prefix("Host\t")) {
-                // Check if the previous block matched
-                if let Some(ref key) = identity_file {
-                    if hosts.iter().any(|h| current_hosts.iter().any(|ch| ch == h)) {
-                        let expanded = key.replace("~", &home.to_string_lossy());
-                        let path = PathBuf::from(&expanded);
-                        if path.exists() {
-                            return Some(path.to_string_lossy().to_string());
-                        }
-                    }
-                }
-                current_hosts = rest.split_whitespace().map(|s| s.to_string()).collect();
-                identity_file = None;
-            } else if let Some(rest) = trimmed.strip_prefix("IdentityFile ").or_else(|| trimmed.strip_prefix("IdentityFile\t")) {
-                identity_file = Some(rest.trim().to_string());
-            }
-        }
-        // Check final block
-        if let Some(ref key) = identity_file {
-            if hosts.iter().any(|h| current_hosts.iter().any(|ch| ch == h)) {
-                let expanded = key.replace("~", &home.to_string_lossy());
-                let path = PathBuf::from(&expanded);
-                if path.exists() {
-                    return Some(path.to_string_lossy().to_string());
-                }
-            }
+        if let Some(key) = detect_ssh_key_from_config(&contents, urls, &home) {
+            return Some(key);
         }
     }
 
@@ -386,24 +345,90 @@ fn detect_ssh_key(urls: &[&str]) -> Option<String> {
     None
 }
 
+/// Parse SSH config text and find the identity file for the given remote URLs.
+/// Returns the expanded path if found and the file exists.
+fn detect_ssh_key_from_config(
+    contents: &str,
+    urls: &[&str],
+    home: &std::path::Path,
+) -> Option<String> {
+    let hosts: Vec<&str> = urls.iter()
+        .filter_map(|url| {
+            url.strip_prefix("git@")
+                .and_then(|rest| rest.split(':').next())
+        })
+        .collect();
+
+    if hosts.is_empty() {
+        return None;
+    }
+
+    let mut current_hosts: Vec<String> = Vec::new();
+    let mut identity_file: Option<String> = None;
+
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        let lower = trimmed.to_lowercase();
+        // Check "hostname" and "identityfile" before "host" since "host" is a prefix of "hostname"
+        if lower.starts_with("hostname ") || lower.starts_with("hostname\t") {
+            // Skip — not relevant for key detection
+        } else if lower.starts_with("identityfile ") || lower.starts_with("identityfile\t") {
+            identity_file = Some(trimmed[12..].trim().to_string());
+        } else if lower.starts_with("host ") || lower.starts_with("host\t") {
+            // Check if the previous block matched
+            if let Some(ref key) = identity_file {
+                if hosts.iter().any(|h| current_hosts.iter().any(|ch| ch == h)) {
+                    let expanded = key.replace("~", &home.to_string_lossy());
+                    let path = PathBuf::from(&expanded);
+                    if path.exists() {
+                        return Some(path.to_string_lossy().to_string());
+                    }
+                }
+            }
+            current_hosts = trimmed[4..].split_whitespace().map(|s| s.to_string()).collect();
+            identity_file = None;
+        }
+    }
+    // Check final block
+    if let Some(ref key) = identity_file {
+        if hosts.iter().any(|h| current_hosts.iter().any(|ch| ch == h)) {
+            let expanded = key.replace("~", &home.to_string_lossy());
+            let path = PathBuf::from(&expanded);
+            if path.exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    None
+}
+
 /// Parse ~/.ssh/config and return a map of Host alias → HostName.
 fn parse_ssh_aliases() -> std::collections::HashMap<String, String> {
-    let mut map = std::collections::HashMap::new();
     let home = match dirs::home_dir() {
         Some(h) => h,
-        None => return map,
+        None => return std::collections::HashMap::new(),
     };
     let contents = match std::fs::read_to_string(home.join(".ssh/config")) {
         Ok(c) => c,
-        Err(_) => return map,
+        Err(_) => return std::collections::HashMap::new(),
     };
+    parse_ssh_config_aliases(&contents)
+}
 
+/// Parse SSH config text and return a map of Host alias → HostName.
+fn parse_ssh_config_aliases(contents: &str) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
     let mut current_hosts: Vec<String> = Vec::new();
     let mut hostname: Option<String> = None;
 
     for line in contents.lines() {
         let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("Host ").or_else(|| trimmed.strip_prefix("Host\t")) {
+        let lower = trimmed.to_lowercase();
+        // Check "hostname" before "host" since "host" is a prefix of "hostname"
+        if lower.starts_with("hostname ") || lower.starts_with("hostname\t") {
+            hostname = Some(trimmed[8..].trim().to_string());
+        } else if lower.starts_with("host ") || lower.starts_with("host\t") {
             // Flush previous block
             if let Some(ref hn) = hostname {
                 for host in &current_hosts {
@@ -412,10 +437,8 @@ fn parse_ssh_aliases() -> std::collections::HashMap<String, String> {
                     }
                 }
             }
-            current_hosts = rest.split_whitespace().map(|s| s.to_string()).collect();
+            current_hosts = trimmed[4..].split_whitespace().map(|s| s.to_string()).collect();
             hostname = None;
-        } else if let Some(rest) = trimmed.strip_prefix("HostName ").or_else(|| trimmed.strip_prefix("HostName\t")) {
-            hostname = Some(rest.trim().to_string());
         }
     }
     // Flush final block
@@ -477,7 +500,7 @@ fn run_prescan(target: &std::path::Path) -> anyhow::Result<String> {
 
     // Collect repo info, resolving SSH host aliases to real hostnames
     let ssh_aliases = parse_ssh_aliases();
-    let mut remotes: Vec<String> = Vec::new();
+    let mut raw_remotes: Vec<String> = Vec::new();
     out.push_str("=== REPOS ===\n");
     for (name, path) in &repos {
         let raw_remote = Command::new("git")
@@ -494,8 +517,8 @@ fn run_prescan(target: &std::path::Path) -> anyhow::Result<String> {
             raw_remote.clone()
         };
 
-        if remote != "NONE" {
-            remotes.push(remote.clone());
+        if raw_remote != "NONE" {
+            raw_remotes.push(raw_remote);
         }
 
         let branch = Command::new("git")
@@ -635,8 +658,8 @@ fn run_prescan(target: &std::path::Path) -> anyhow::Result<String> {
         anyhow::bail!("No git repositories found in {}", target.display());
     }
 
-    // Detect SSH key from remotes
-    let remote_refs: Vec<&str> = remotes.iter().map(|s| s.as_str()).collect();
+    // Detect SSH key from raw remotes (before alias resolution, so Host aliases match)
+    let remote_refs: Vec<&str> = raw_remotes.iter().map(|s| s.as_str()).collect();
     if let Some(key) = detect_ssh_key(&remote_refs) {
         out.push_str(&format!("\n=== SSH ===\n{}\n", key));
     }
@@ -1011,4 +1034,200 @@ pub fn clone_repo(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_ssh_aliases_lowercase_hostname() {
+        let config = "\
+Host advicecloud-github
+    Hostname github.com
+    User git
+    IdentityFile ~/.ssh/advicecloud
+";
+        let aliases = parse_ssh_config_aliases(config);
+        assert_eq!(aliases.get("advicecloud-github").unwrap(), "github.com");
+    }
+
+    #[test]
+    fn parse_ssh_aliases_camelcase_hostname() {
+        let config = "\
+Host myalias
+    HostName gitlab.example.com
+    IdentityFile ~/.ssh/id_rsa
+";
+        let aliases = parse_ssh_config_aliases(config);
+        assert_eq!(aliases.get("myalias").unwrap(), "gitlab.example.com");
+    }
+
+    #[test]
+    fn parse_ssh_aliases_multiple_hosts() {
+        let config = "\
+Host work-gh
+    Hostname github.com
+    IdentityFile ~/.ssh/work
+
+Host personal-gh
+    Hostname github.com
+    IdentityFile ~/.ssh/personal
+
+Host staging
+    Hostname staging.example.com
+";
+        let aliases = parse_ssh_config_aliases(config);
+        assert_eq!(aliases.get("work-gh").unwrap(), "github.com");
+        assert_eq!(aliases.get("personal-gh").unwrap(), "github.com");
+        assert_eq!(aliases.get("staging").unwrap(), "staging.example.com");
+    }
+
+    #[test]
+    fn parse_ssh_aliases_skips_wildcards() {
+        let config = "\
+Host *
+    ServerAliveInterval 60
+
+Host myhost
+    Hostname real.host.com
+";
+        let aliases = parse_ssh_config_aliases(config);
+        assert!(!aliases.contains_key("*"));
+        assert_eq!(aliases.get("myhost").unwrap(), "real.host.com");
+    }
+
+    #[test]
+    fn parse_ssh_aliases_empty_config() {
+        let aliases = parse_ssh_config_aliases("");
+        assert!(aliases.is_empty());
+    }
+
+    #[test]
+    fn parse_ssh_aliases_no_hostname() {
+        let config = "\
+Host nohost
+    User git
+    IdentityFile ~/.ssh/key
+";
+        let aliases = parse_ssh_config_aliases(config);
+        assert!(!aliases.contains_key("nohost"));
+    }
+
+    #[test]
+    fn resolve_alias_matches() {
+        let mut aliases = std::collections::HashMap::new();
+        aliases.insert("advicecloud-github".to_string(), "github.com".to_string());
+
+        assert_eq!(
+            resolve_ssh_alias("git@advicecloud-github:AdviceCloud/db.git", &aliases),
+            "git@github.com:AdviceCloud/db.git"
+        );
+    }
+
+    #[test]
+    fn resolve_alias_no_match() {
+        let aliases = std::collections::HashMap::new();
+        let url = "git@github.com:user/repo.git";
+        assert_eq!(resolve_ssh_alias(url, &aliases), url);
+    }
+
+    #[test]
+    fn resolve_alias_https_passthrough() {
+        let mut aliases = std::collections::HashMap::new();
+        aliases.insert("something".to_string(), "other.com".to_string());
+
+        let url = "https://github.com/user/repo.git";
+        assert_eq!(resolve_ssh_alias(url, &aliases), url);
+    }
+
+    #[test]
+    fn resolve_alias_ssh_protocol() {
+        let aliases = std::collections::HashMap::new();
+        let url = "ssh://git@example.com/repo.git";
+        assert_eq!(resolve_ssh_alias(url, &aliases), url);
+    }
+
+    #[test]
+    fn detect_key_lowercase_hostname() {
+        // This is the exact pattern that caused the bug: Hostname (lowercase n)
+        // was being caught by the "host " prefix check instead of being skipped
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let key_path = tmp.path().to_string_lossy().to_string();
+
+        let config = format!("\
+Host advicecloud-github
+    Hostname github.com
+    User git
+    IdentityFile {}
+", key_path);
+
+        let urls = &["git@advicecloud-github:Org/repo.git"];
+        let home = PathBuf::from("/dummy");
+        let result = detect_ssh_key_from_config(&config, urls, &home);
+        assert_eq!(result.unwrap(), key_path);
+    }
+
+    #[test]
+    fn detect_key_camelcase_hostname() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let key_path = tmp.path().to_string_lossy().to_string();
+
+        let config = format!("\
+Host myalias
+    HostName example.com
+    IdentityFile {}
+", key_path);
+
+        let urls = &["git@myalias:user/repo.git"];
+        let home = PathBuf::from("/dummy");
+        let result = detect_ssh_key_from_config(&config, urls, &home);
+        assert_eq!(result.unwrap(), key_path);
+    }
+
+    #[test]
+    fn detect_key_no_match() {
+        let config = "\
+Host other-host
+    Hostname other.com
+    IdentityFile ~/.ssh/other_key
+";
+        let urls = &["git@myhost:user/repo.git"];
+        let home = PathBuf::from("/nonexistent");
+        let result = detect_ssh_key_from_config(config, urls, &home);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn detect_key_https_urls_ignored() {
+        let config = "\
+Host myhost
+    Hostname example.com
+    IdentityFile ~/.ssh/key
+";
+        let urls = &["https://github.com/user/repo.git"];
+        let home = PathBuf::from("/dummy");
+        let result = detect_ssh_key_from_config(config, urls, &home);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn detect_key_with_tilde_expansion() {
+        let home = dirs::home_dir().unwrap();
+        // Use a key we know exists on this machine
+        let id_rsa = home.join(".ssh/id_rsa");
+        if !id_rsa.exists() {
+            return; // skip if no id_rsa
+        }
+
+        let config = "\
+Host testhost
+    Hostname test.com
+    IdentityFile ~/.ssh/id_rsa
+";
+        let urls = &["git@testhost:user/repo.git"];
+        let result = detect_ssh_key_from_config(config, urls, &home);
+        assert!(result.is_some());
+        assert!(result.unwrap().ends_with(".ssh/id_rsa"));
+    }
 }
