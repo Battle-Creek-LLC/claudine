@@ -50,7 +50,7 @@ pub fn catalog() -> Vec<Layer> {
             requires: &[],
             build_tool: None,
             dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable".to_string(),
-            validate: &["node --version", "npm --version", "corepack --version"],
+            validate: &["node --version", "npm --version", "npx --version", "corepack --version"],
         },
         Layer {
             name: "gh",
