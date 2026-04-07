@@ -77,6 +77,14 @@ pub fn catalog() -> Vec<Layer> {
             validate: &["python3 -m venv /tmp/_venv_check && rm -rf /tmp/_venv_check"],
         },
         Layer {
+            name: "msodbc",
+            description: "Microsoft ODBC Driver 18 for SQL Server",
+            requires: &[],
+            build_tool: None,
+            dockerfile: "RUN apt-get update && apt-get install -y unixodbc curl gnupg2 \\\n    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \\\n    && echo \"deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main\" > /etc/apt/sources.list.d/mssql-release.list \\\n    && apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
+            validate: &["odbcinst -j"],
+        },
+        Layer {
             name: "rust",
             description: "Rust toolchain (persistent, available at runtime)",
             requires: &[],
