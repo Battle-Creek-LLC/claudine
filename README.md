@@ -24,7 +24,7 @@ claudine run myproject my-repo
 - **Multi-repo projects** — init multiple repos into one project, switch between them
 - **SSH key isolation** — only the key you choose is available inside the container
 - **Container reuse** — multiple terminals share one container via `docker exec`
-- **Host file sharing** — `~/claudine-share/<project>/` is mounted at `/share` inside the container
+- **Host file sharing** — `~/share/<project>/` is mounted at `/share` inside the container
 - **Docker-outside-of-Docker** — Claude can run Docker commands that execute on the host daemon
 - **Security hooks** — [ward](https://github.com/jstockdi/ward) PII/secrets scanning built into Claude Code hooks
 - **Built-in layers** — add Node.js, Heroku CLI, Rust, etc. to project images with one command
@@ -135,7 +135,7 @@ Layer {
 ├── <repo2>/           Second repository
 └── ...
 
-/share/                Bind mount to ~/claudine-share/<project>/
+/share/                Bind mount to ~/share/<project>/
 ```
 
 ## Documentation

@@ -57,11 +57,11 @@ pub fn container_name(project: &str) -> String {
     format!("claudine_{project}")
 }
 
-/// Return the host-side shared directory path for a project: ~/claudine-share/<project>/
+/// Return the host-side shared directory path for a project: ~/share/<project>/
 pub fn share_dir(project: &str) -> anyhow::Result<std::path::PathBuf> {
     let home = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
-    Ok(home.join("claudine-share").join(project))
+    Ok(home.join("share").join(project))
 }
 
 /// Check whether the Docker volume for a project exists.

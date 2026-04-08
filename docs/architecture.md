@@ -20,7 +20,7 @@ Docker volume                                ▼
   ├── <repo1>/                             ├── <repo1>/
   └── <repo2>/                             └── <repo2>/
 
-~/claudine-share/<project>/ ── mounted ──► /share/   (host ↔ container)
+~/share/<project>/ ── mounted ──► /share/   (host ↔ container)
 
 /var/run/docker.sock ──────── mounted ──► /var/run/docker.sock (DooD)
 ```
@@ -193,7 +193,7 @@ struct RepoConfig {
 2. Prompt for SSH key path (optional — leave empty for HTTPS repos)
 3. Loop: prompt for repo URL, directory name, branch (repeat until empty URL)
 4. docker volume create claudine_<project>
-5. Create ~/claudine-share/<project>/ on the host
+5. Create ~/share/<project>/ on the host
 6. Serialize ProjectConfig to config dir
 7. Run setup-home.sh in a one-shot container to set up /project/home:
    docker run --rm \
@@ -226,7 +226,7 @@ The clone runs as the `claude` user (entrypoint drops privileges via gosu before
      --name claudine_<project>
      -v claudine_<project>:/project
      -v /var/run/docker.sock:/var/run/docker.sock
-     -v ~/claudine-share/<project>/:/share   (if exists)
+     -v ~/share/<project>/:/share   (if exists)
      -w /project/<repo>                      (or /project if no repo specified)
      -e HOME=/project/home
      --shm-size=256m
@@ -282,7 +282,7 @@ Three auth mechanisms are forwarded:
 3. **SSH key**: A single SSH key (selected during `claudine init`) is copied into the volume and configured as the default identity. Only the required key is exposed — no other keys from the host `~/.ssh/` directory are accessible inside the container.
 
 ### Shared Directory Mount
-Each project gets a host-side shared directory at `~/claudine-share/<project>/`, mounted into the container at `/share`. This provides a simple mechanism for transferring files between the host and container without going through git. The directory is created automatically during `claudine init`.
+Each project gets a host-side shared directory at `~/share/<project>/`, mounted into the container at `/share`. This provides a simple mechanism for transferring files between the host and container without going through git. The directory is created automatically during `claudine init`.
 
 ### TTY Detection
 The CLI checks `std::io::stdin().is_terminal()` before adding `-it` flags to `docker run` and `docker exec`. Interactive terminal sessions get full TTY allocation; piped or scripted usage (e.g., `echo "fix the bug" | claudine run myproject`) runs without TTY flags so Docker doesn't error on missing terminal.

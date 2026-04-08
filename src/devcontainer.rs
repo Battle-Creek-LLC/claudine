@@ -42,8 +42,8 @@ pub fn generate(project: &str, repo: Option<&str>) -> anyhow::Result<String> {
 }
 
 /// Return the base directory for devcontainer output.
-/// With a repo, returns ~/claudine-share/<project>/<repo>/;
-/// without, returns ~/claudine-share/<project>/.
+/// With a repo, returns ~/share/<project>/<repo>/;
+/// without, returns ~/share/<project>/.
 fn devcontainer_base(project: &str, repo: Option<&str>) -> anyhow::Result<std::path::PathBuf> {
     let share = project::share_dir(project)?;
     if !share.exists() {
