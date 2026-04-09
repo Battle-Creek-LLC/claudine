@@ -98,6 +98,10 @@ pub enum Command {
         /// Rebuild all project images that have layers
         #[arg(long)]
         all: bool,
+
+        /// Build without using Docker layer cache
+        #[arg(long)]
+        no_cache: bool,
     },
 
     /// List all claudine projects

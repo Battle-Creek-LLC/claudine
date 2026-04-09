@@ -28,7 +28,7 @@ pub fn check_docker() -> anyhow::Result<()> {
 }
 
 /// Build the claudine Docker image.
-pub fn cmd_build() -> anyhow::Result<()> {
+pub fn cmd_build(no_cache: bool) -> anyhow::Result<()> {
     check_docker()?;
 
     let tmp = tempfile::tempdir()
@@ -48,8 +48,13 @@ pub fn cmd_build() -> anyhow::Result<()> {
 
     println!("Building claudine Docker image...");
 
+    let mut args = vec!["build", "-t", "claudine:latest"];
+    if no_cache {
+        args.push("--no-cache");
+    }
+
     let status = Command::new("docker")
-        .args(["build", "-t", "claudine:latest"])
+        .args(&args)
         .arg(tmp.path())
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
@@ -68,7 +73,7 @@ pub fn cmd_build() -> anyhow::Result<()> {
 ///
 /// Writes the Dockerfile content to a temporary directory and runs
 /// `docker build -t claudine:<project>` against it.
-pub fn cmd_build_project(project: &str, dockerfile_content: &str) -> anyhow::Result<()> {
+pub fn cmd_build_project(project: &str, dockerfile_content: &str, no_cache: bool) -> anyhow::Result<()> {
     check_docker()?;
 
     let tmp = tempfile::tempdir()
@@ -82,8 +87,14 @@ pub fn cmd_build_project(project: &str, dockerfile_content: &str) -> anyhow::Res
     let tag = format!("claudine:{}", project);
     println!("Building project image {}...", tag);
 
+    let mut args = vec!["build", "-t"];
+    args.push(&tag);
+    if no_cache {
+        args.push("--no-cache");
+    }
+
     let status = Command::new("docker")
-        .args(["build", "-t", &tag])
+        .args(&args)
         .arg(tmp.path())
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())

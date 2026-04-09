@@ -33,12 +33,12 @@ fn main() -> anyhow::Result<()> {
     eprintln!("\n  \"{}\" — Bruce Lee\n", quote);
 
     match cli.command {
-        Command::Build { project: None, all: false } => docker::cmd_build(),
-        Command::Build { project: Some(project), .. } => {
+        Command::Build { project: None, all: false, no_cache } => docker::cmd_build(no_cache),
+        Command::Build { project: Some(project), no_cache, .. } => {
             let project = resolve::project(&project)?;
-            layer::cmd_build_project(&project)
+            layer::cmd_build_project(&project, no_cache)
         }
-        Command::Build { project: None, all: true } => layer::cmd_build_all(),
+        Command::Build { project: None, all: true, no_cache } => layer::cmd_build_all(no_cache),
         Command::Init { project, ssh_key, repos, layers, agent } => {
             if let Some(agent_path) = agent {
                 init::cmd_init_agent(&project, &agent_path, ssh_key.as_deref())

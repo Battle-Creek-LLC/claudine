@@ -164,8 +164,8 @@ pub fn catalog() -> Vec<Layer> {
             description: "Chrome automation CLI (built from source, jstockdi fork)",
             requires: &[],
             build_tool: Some(BuildTool::Go),
-            dockerfile: "RUN git clone https://github.com/jstockdi/rodney.git /tmp/rodney \\\n    && cd /tmp/rodney \\\n    && go build -o /usr/local/bin/rodney . \\\n    && chmod 755 /usr/local/bin/rodney \\\n    && rm -rf /tmp/rodney".to_string(),
-            validate: &["rodney --help"],
+            dockerfile: "RUN apt-get update && apt-get install -y --no-install-recommends chromium \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && git clone https://github.com/jstockdi/rodney.git /tmp/rodney \\\n    && cd /tmp/rodney \\\n    && go build -o /usr/local/bin/rodney . \\\n    && chmod 755 /usr/local/bin/rodney \\\n    && rm -rf /tmp/rodney".to_string(),
+            validate: &["chromium --version", "rodney --help"],
         },
     ]
 }
@@ -299,7 +299,7 @@ pub fn generate_dockerfile(layers: &[String]) -> anyhow::Result<String> {
 }
 
 /// Rebuild all project images that have layers installed.
-pub fn cmd_build_all() -> anyhow::Result<()> {
+pub fn cmd_build_all(no_cache: bool) -> anyhow::Result<()> {
     let projects = config::list_projects()?;
     let mut failures: Vec<String> = Vec::new();
 
@@ -320,7 +320,7 @@ pub fn cmd_build_all() -> anyhow::Result<()> {
         }
 
         println!("=== {} ===", name);
-        match cmd_build_project(name) {
+        match cmd_build_project(name, no_cache) {
             Ok(()) => {}
             Err(e) => {
                 eprintln!("Error: {}", e);
@@ -339,7 +339,7 @@ pub fn cmd_build_all() -> anyhow::Result<()> {
 }
 
 /// Rebuild a project's layer image from its current config.
-pub fn cmd_build_project(project: &str) -> anyhow::Result<()> {
+pub fn cmd_build_project(project: &str, no_cache: bool) -> anyhow::Result<()> {
     let project_config = config::load_project(project)?;
 
     let layers = project_config
@@ -349,7 +349,7 @@ pub fn cmd_build_project(project: &str) -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Project '{}' has no layers installed.", project))?;
 
     let dockerfile = generate_dockerfile(layers)?;
-    docker::cmd_build_project(project, &dockerfile)?;
+    docker::cmd_build_project(project, &dockerfile, no_cache)?;
 
     let image = format!("claudine:{}", project);
     validate_image(&image, layers)?;
@@ -396,7 +396,7 @@ pub fn cmd_layer_add(project: &str, layer: &str) -> anyhow::Result<()> {
     // Generate Dockerfile and build
     let layers = project_config.layers.as_ref().unwrap();
     let dockerfile = generate_dockerfile(layers)?;
-    docker::cmd_build_project(project, &dockerfile)?;
+    docker::cmd_build_project(project, &dockerfile, false)?;
 
     let image = format!("claudine:{}", project);
     validate_image(&image, layers)?;
@@ -449,7 +449,7 @@ pub fn cmd_layer_remove(project: &str, layer: &str) -> anyhow::Result<()> {
 
         let layers = project_config.layers.as_ref().unwrap();
         let dockerfile = generate_dockerfile(layers)?;
-        docker::cmd_build_project(project, &dockerfile)?;
+        docker::cmd_build_project(project, &dockerfile, false)?;
 
         let image = format!("claudine:{}", project);
         validate_image(&image, layers)?;

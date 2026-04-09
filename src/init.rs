@@ -826,7 +826,7 @@ fn execute_init(
     if let Some(ref layer_list) = project_config.layers {
         if !layer_list.is_empty() {
             let dockerfile = layer::generate_dockerfile(layer_list)?;
-            crate::docker::cmd_build_project(name, &dockerfile)?;
+            crate::docker::cmd_build_project(name, &dockerfile, false)?;
         }
     }
 
