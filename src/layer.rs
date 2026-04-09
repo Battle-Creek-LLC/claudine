@@ -98,7 +98,7 @@ pub fn catalog() -> Vec<Layer> {
             description: "Rust toolchain (persistent, available at runtime)",
             requires: &[],
             build_tool: None,
-            dockerfile: "ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo\nRUN apt-get update && apt-get install -y build-essential \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \\\n    && chmod -R a+rX /usr/local/rustup /usr/local/cargo \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin\nENV PATH=\"/usr/local/cargo/bin:${PATH}\"".to_string(),
+            dockerfile: "ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo\nRUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \\\n    && chmod -R a+rwX /usr/local/rustup /usr/local/cargo \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin\nENV PATH=\"/usr/local/cargo/bin:${PATH}\"".to_string(),
             validate: &["cargo --version", "rustc --version", "just --version"],
             path: &["/usr/local/cargo/bin"],
         },
@@ -108,7 +108,7 @@ pub fn catalog() -> Vec<Layer> {
             requires: &[],
             build_tool: None,
             dockerfile: format!(
-                "RUN curl -fsSL https://go.dev/dl/go{ver}.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz\nENV PATH=\"/usr/local/go/bin:${{PATH}}\"",
+                "RUN curl -fsSL https://go.dev/dl/go{ver}.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz \\\n    && chmod -R a+rwX /usr/local/go\nENV PATH=\"/usr/local/go/bin:${{PATH}}\"",
                 ver = GO_VERSION
             ),
             validate: &["go version"],
@@ -290,17 +290,13 @@ pub fn generate_dockerfile(layers: &[String]) -> anyhow::Result<String> {
         lines.push(String::new());
         lines.push("# Build phase: install build toolchains".to_string());
 
-        let mut install_parts = vec!["RUN apt-get update && apt-get install -y build-essential".to_string()];
-
         if needs_rust {
-            install_parts.push("    && export RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path".to_string());
+            lines.push("RUN export RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path".to_string());
         }
 
         if needs_go {
-            install_parts.push(format!("    && curl -fsSL https://go.dev/dl/go{GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz"));
+            lines.push(format!("RUN curl -fsSL https://go.dev/dl/go{GO_VERSION}.linux-$(dpkg --print-architecture).tar.gz | tar -C /usr/local -xz"));
         }
-
-        lines.push(install_parts.join(" \\\n"));
     }
 
     // Compiled layers (Rust first, then Go — catalog order)
@@ -320,21 +316,20 @@ pub fn generate_dockerfile(layers: &[String]) -> anyhow::Result<String> {
         }
     }
 
-    // Clean up build toolchains
+    // Clean up temporary build toolchains
     if needs_rust || needs_go {
         lines.push(String::new());
-        lines.push("# Cleanup: remove build toolchains".to_string());
+        lines.push("# Cleanup: remove temporary build toolchains".to_string());
 
-        let mut cleanup = vec!["RUN apt-get purge -y build-essential && apt-get autoremove -y".to_string()];
+        let mut cleanup = vec!["RUN rm -rf".to_string()];
 
         if needs_rust {
-            cleanup.push("    && rm -rf /usr/local/cargo /usr/local/rustup".to_string());
+            cleanup.push("    /usr/local/cargo /usr/local/rustup".to_string());
         }
         if needs_go {
-            cleanup.push("    && rm -rf /usr/local/go".to_string());
+            cleanup.push("    /usr/local/go".to_string());
         }
 
-        cleanup.push("    && rm -rf /var/lib/apt/lists/*".to_string());
         lines.push(cleanup.join(" \\\n"));
     }
 

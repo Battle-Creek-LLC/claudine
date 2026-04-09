@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     ca-certificates \
     curl \
     file \
@@ -43,17 +44,14 @@ RUN curl -fsSL https://claude.ai/install.sh | bash \
     && chmod 755 /usr/local/bin/claude
 
 # Install ward (PII/secrets scanner for Claude Code hooks)
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
     && . /root/.cargo/env \
     && git clone https://github.com/jstockdi/ward.git /tmp/ward \
     && cd /tmp/ward \
     && cargo build --release \
     && cp target/release/ward /usr/local/bin/ward \
     && chmod 755 /usr/local/bin/ward \
-    && rm -rf /tmp/ward /root/.cargo /root/.rustup \
-    && apt-get purge -y build-essential && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /tmp/ward /root/.cargo /root/.rustup
 
 # Create non-root user with home at /project/home (persistent volume)
 RUN useradd -d /project/home -s /bin/zsh claude
