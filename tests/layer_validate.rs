@@ -105,12 +105,24 @@ fn validate_doctl() {
     validate("doctl");
 }
 
+#[test]
+#[ignore]
+fn validate_postgres() {
+    validate("postgres");
+}
+
 // -- Slow layers (built from source) --
 
 #[test]
 #[ignore]
 fn validate_lin() {
     validate("lin");
+}
+
+#[test]
+#[ignore]
+fn validate_exp() {
+    validate("exp");
 }
 
 #[test]

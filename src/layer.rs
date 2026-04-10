@@ -94,6 +94,15 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
         },
         Layer {
+            name: "postgres",
+            description: "PostgreSQL client (psql)",
+            requires: &[],
+            build_tool: None,
+            dockerfile: "RUN apt-get update \\\n    && apt-get install -y --no-install-recommends postgresql-client \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
+            validate: &["psql --version"],
+            path: &[],
+        },
+        Layer {
             name: "rust",
             description: "Rust toolchain (persistent, available at runtime)",
             requires: &[],
@@ -139,6 +148,15 @@ pub fn catalog() -> Vec<Layer> {
             build_tool: Some(BuildTool::Rust),
             dockerfile: "RUN git clone https://github.com/sprouted-dev/lin.git /tmp/lin \\\n    && cd /tmp/lin \\\n    && cargo build --release \\\n    && cp target/release/lin /usr/local/bin/lin \\\n    && chmod 755 /usr/local/bin/lin \\\n    && rm -rf /tmp/lin".to_string(),
             validate: &["lin --help"],
+            path: &[],
+        },
+        Layer {
+            name: "exp",
+            description: "Experiment tracker CLI (built from source)",
+            requires: &[],
+            build_tool: Some(BuildTool::Rust),
+            dockerfile: "RUN git clone https://github.com/jstockdi/exp.git /tmp/exp \\\n    && cd /tmp/exp \\\n    && cargo build --release \\\n    && cp target/release/exp /usr/local/bin/exp \\\n    && chmod 755 /usr/local/bin/exp \\\n    && rm -rf /tmp/exp".to_string(),
+            validate: &["exp --help"],
             path: &[],
         },
         Layer {
@@ -787,9 +805,11 @@ mod tests {
         assert!(names.contains(&"python-venv"));
         assert!(names.contains(&"rust"));
         assert!(names.contains(&"go"));
+        assert!(names.contains(&"postgres"));
         assert!(names.contains(&"aws"));
         assert!(names.contains(&"java"));
         assert!(names.contains(&"flyway"));
+        assert!(names.contains(&"exp"));
         assert!(names.contains(&"terraform"));
         assert!(names.contains(&"doctl"));
     }
