@@ -309,7 +309,8 @@ pub fn generate_dockerfile(layers: &[String]) -> anyhow::Result<String> {
         lines.push("# Build phase: install build toolchains".to_string());
 
         if needs_rust {
-            lines.push("RUN export RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo \\\n    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path".to_string());
+            lines.push("ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo".to_string());
+            lines.push("RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path".to_string());
         }
 
         if needs_go {
@@ -812,6 +813,16 @@ mod tests {
         assert!(names.contains(&"exp"));
         assert!(names.contains(&"terraform"));
         assert!(names.contains(&"doctl"));
+    }
+
+    #[test]
+    fn rust_layer_skips_build_toolchain() {
+        let layers = vec!["rust".to_string(), "exp".to_string()];
+        let result = generate_dockerfile(&layers).unwrap();
+        assert!(!result.contains("Build phase: install build toolchains"));
+        assert!(!result.contains("Cleanup: remove build toolchains"));
+        assert!(result.contains("# Layer: rust"));
+        assert!(result.contains("# Layer: exp"));
     }
 
     #[test]
