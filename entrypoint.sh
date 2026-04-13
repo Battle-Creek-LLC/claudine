@@ -11,6 +11,12 @@ if [ -S /var/run/docker.sock ]; then
     usermod -aG "${DOCKER_GROUP_NAME}" claude
 fi
 
+# Seed a default .zshrc on first run so zsh-newuser-install doesn't prompt
+if [ ! -f /project/home/.zshrc ] && [ -f /etc/zsh/newuser.zshrc.recommended ]; then
+    install -o claude -g claude -m 0644 \
+        /etc/zsh/newuser.zshrc.recommended /project/home/.zshrc
+fi
+
 # Ensure ~/.local/bin is on PATH for all shell types
 export PATH="/project/home/.local/bin:$PATH"
 
