@@ -127,11 +127,23 @@ fn write_private_file(path: &std::path::Path, content: &str) -> anyhow::Result<(
     Ok(())
 }
 
-/// Return the base configuration directory: `~/.config/claudine/`.
+/// Return the base configuration directory.
+///
+/// Resolves via `dirs::config_dir()`, so on macOS this is
+/// `~/Library/Application Support/claudine/` and on Linux it is
+/// `~/.config/claudine/`.
 pub fn config_dir() -> anyhow::Result<PathBuf> {
     let base = dirs::config_dir()
         .ok_or_else(|| anyhow::anyhow!("Could not determine user config directory"))?;
     Ok(base.join("claudine"))
+}
+
+/// Return the directory that holds layer source checkouts.
+///
+/// Layers with a `source_repo` are cloned into `sources/<layer-name>/` here and
+/// staged into Docker build contexts on demand.
+pub fn sources_dir() -> anyhow::Result<PathBuf> {
+    Ok(config_dir()?.join("sources"))
 }
 
 /// Load the global config from `~/.config/claudine/config.toml`.

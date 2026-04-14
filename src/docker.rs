@@ -3,7 +3,7 @@ use std::process::Command;
 
 use dialoguer::Confirm;
 
-use crate::{config, layer, project};
+use crate::{config, layer, project, sources};
 
 const DOCKERFILE: &str = include_str!("../Dockerfile");
 const ENTRYPOINT: &str = include_str!("../entrypoint.sh");
@@ -108,6 +108,8 @@ pub fn cmd_build_project(project: &str, dockerfile_content: &str, no_cache: bool
     let mut f = std::fs::File::create(&dockerfile_path)
         .map_err(|e| anyhow::anyhow!("Failed to write Dockerfile: {e}"))?;
     f.write_all(dockerfile_content.as_bytes())?;
+
+    sources::stage_sources(tmp.path())?;
 
     let tag = format!("claudine:{}", project);
     println!("Building project image {}...", tag);

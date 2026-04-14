@@ -61,7 +61,7 @@ claudine layer add myproject heroku     # add Heroku CLI (requires node)
 
 Every `layer add`, `layer remove`, and `build <project>` automatically runs validation checks against the final image to catch installation failures and conflicts.
 
-Available layers: `node-20`, `node-22`, `node-24`, `gh`, `heroku`, `python-venv`, `rust`, `go`, `java`, `flyway`, `aws`, `terraform`, `doctl`, `lin`, `glab`, `rodney`
+Available layers: `node-20`, `node-22`, `node-24`, `gh`, `heroku`, `python-venv`, `rust`, `go`, `java`, `flyway`, `aws`, `terraform`, `doctl`, `lin`, `exp`, `terra`, `glab`, `rodney`
 
 ### Standalone Validation
 

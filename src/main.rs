@@ -7,6 +7,7 @@ mod layer;
 mod project;
 mod repo;
 mod resolve;
+mod sources;
 
 use clap::{CommandFactory, Parser};
 use clap_complete::generate;
