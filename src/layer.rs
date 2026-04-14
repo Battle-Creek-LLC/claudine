@@ -205,7 +205,6 @@ pub fn catalog() -> Vec<Layer> {
                     && apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev \\\n\
                     && cd /tmp/terra \\\n\
                     && cargo install --path sprout --root /usr/local \\\n\
-                    && apt-get purge -y --auto-remove protobuf-compiler libprotobuf-dev \\\n\
                     && rm -rf /var/lib/apt/lists/* /tmp/terra /usr/local/cargo/registry /usr/local/cargo/git \\\n\
                     && mkdir -p /etc/terra \\\n\
                     && printf '[endpoints]\\nsunlight = \"http://host.docker.internal:50061\"\\n' > /etc/terra/services.toml\n\
@@ -924,9 +923,13 @@ mod tests {
         // services.toml must be baked with the host.docker.internal endpoint.
         assert!(result.contains("host.docker.internal:50061"));
         assert!(result.contains("ENV TERRA_HOME=/etc/terra"));
-        // protobuf-compiler must be installed and purged in the same RUN.
+        // protobuf-compiler must be installed and kept available at runtime so
+        // terra can be rebuilt inside the container from a live checkout.
         assert!(result.contains("apt-get install -y --no-install-recommends protobuf-compiler"));
-        assert!(result.contains("apt-get purge -y --auto-remove protobuf-compiler"));
+        assert!(
+            !result.contains("apt-get purge -y --auto-remove protobuf-compiler"),
+            "terra layer must NOT purge protobuf-compiler — it is needed at runtime for rebuilding sp"
+        );
 
         let copy_pos = result.find("COPY terra /tmp/terra").unwrap();
         let run_pos = result
