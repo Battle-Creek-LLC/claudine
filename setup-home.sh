@@ -91,6 +91,18 @@ cat > /project/home/.claude/settings.json <<'SETTINGS'
 SETTINGS
 chown -R claude:claude /project/home/.claude
 
+# Seed terra config into the user's home if the terra layer is installed
+if [ -d /opt/terra-defaults ]; then
+    mkdir -p /project/home/.terra
+    if [ -f /opt/terra-defaults/services.toml ] && [ ! -f /project/home/.terra/services.toml ]; then
+        cp /opt/terra-defaults/services.toml /project/home/.terra/services.toml
+    fi
+    if [ -f /opt/terra-defaults/agents.yaml ] && [ ! -f /project/home/.terra/agents.yaml ]; then
+        cp /opt/terra-defaults/agents.yaml /project/home/.terra/agents.yaml
+    fi
+    chown -R claude:claude /project/home/.terra
+fi
+
 # Install claude CLI at ~/.local/bin (where Claude Code expects to find itself)
 mkdir -p /project/home/.local/bin
 cp /usr/local/bin/claude /project/home/.local/bin/claude

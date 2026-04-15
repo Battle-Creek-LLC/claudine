@@ -205,11 +205,13 @@ pub fn catalog() -> Vec<Layer> {
                     && apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev \\\n\
                     && cd /tmp/terra \\\n\
                     && cargo install --path sprout --root /usr/local \\\n\
+                    && cargo install --git https://github.com/sprouted-dev/guild.git --root /usr/local \\\n\
                     && rm -rf /var/lib/apt/lists/* /tmp/terra /usr/local/cargo/registry /usr/local/cargo/git \\\n\
-                    && mkdir -p /etc/terra \\\n\
-                    && printf '[endpoints]\\nsunlight = \"http://host.docker.internal:50061\"\\n' > /etc/terra/services.toml\n\
-                ENV TERRA_HOME=/etc/terra".to_string(),
-            validate: &["sp --help"],
+                    && mkdir -p /opt/terra-defaults \\\n\
+                    && printf '[endpoints]\\nsunlight = \"http://host.docker.internal:50061\"\\n' > /opt/terra-defaults/services.toml \\\n\
+                    && printf 'default_agent: claude\\n\\nagents:\\n  claude:\\n    command: \"npx\"\\n    args: [\"@zed-industries/claude-agent-acp\"]\\n    protocol: acp\\n    models:\\n      default: opus\\n      available: [sonnet, opus, haiku]\\n    description: \"Claude Code via ACP adapter\"\\n\\ninstalled:\\n  - claude\\n\\ndefaults:\\n  agent: claude\\n  model: opus\\n\\nby_type:\\n  enrichment:\\n    model: haiku\\n  planning:\\n    model: opus\\n' > /opt/terra-defaults/agents.yaml\n\
+                ENV TERRA_HOME=/project/home/.terra".to_string(),
+            validate: &["sp --help", "guild --help"],
             path: &[],
             source_repo: Some("git@github.com:sprouted-dev/terra.git"),
             source_ref: None,
@@ -920,9 +922,19 @@ mod tests {
         );
         // The RUN must still include the cargo install step later on.
         assert!(result.contains("cargo install --path sprout --root /usr/local"));
-        // services.toml must be baked with the host.docker.internal endpoint.
+        // Guild CLI must be installed alongside sp from the sprouted-dev repo.
+        assert!(result.contains("cargo install --git https://github.com/sprouted-dev/guild.git --root /usr/local"));
+        // services.toml default must be baked with the host.docker.internal endpoint
+        // into a build-time location that setup-home.sh seeds into the user's home.
         assert!(result.contains("host.docker.internal:50061"));
-        assert!(result.contains("ENV TERRA_HOME=/etc/terra"));
+        assert!(result.contains("/opt/terra-defaults/services.toml"));
+        assert!(result.contains("/opt/terra-defaults/agents.yaml"));
+        assert!(result.contains("default_agent: claude"));
+        assert!(result.contains("ENV TERRA_HOME=/project/home/.terra"));
+        assert!(
+            !result.contains("/etc/terra"),
+            "terra config must live under the user's home, not /etc/terra"
+        );
         // protobuf-compiler must be installed and kept available at runtime so
         // terra can be rebuilt inside the container from a live checkout.
         assert!(result.contains("apt-get install -y --no-install-recommends protobuf-compiler"));
