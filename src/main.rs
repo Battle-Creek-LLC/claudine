@@ -52,10 +52,10 @@ fn main() -> anyhow::Result<()> {
             let repo = repo.map(|r| resolve::repo(&project, &r)).transpose()?;
             docker::cmd_run(&project, repo.as_deref(), resume.as_deref(), prompt.as_deref(), &args)
         }
-        Command::Shell { project, repo } => {
+        Command::Shell { project, repo, args } => {
             let project = resolve::project(&project)?;
             let repo = repo.map(|r| resolve::repo(&project, &r)).transpose()?;
-            docker::cmd_shell(&project, repo.as_deref())
+            docker::cmd_shell(&project, repo.as_deref(), &args)
         }
         Command::Zed { project, repo } => {
             let project = resolve::project(&project)?;

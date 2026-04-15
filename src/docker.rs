@@ -164,13 +164,18 @@ pub fn cmd_run(project: &str, repo: Option<&str>, resume: Option<&str>, prompt: 
     exec_in_project(project, repo, &container_cmd)
 }
 
-/// Open an interactive shell in a project's container.
+/// Open an interactive shell in a project's container, or run a command non-interactively.
 ///
-/// If the project container is already running, attaches via `docker exec`.
-/// Otherwise, starts a new named container with bash.
-pub fn cmd_shell(project: &str, repo: Option<&str>) -> anyhow::Result<()> {
+/// If `args` is empty, launches an interactive zsh. Otherwise, runs the given command
+/// in the container and exits. If the project container is already running, attaches
+/// via `docker exec`; otherwise starts a new named container first.
+pub fn cmd_shell(project: &str, repo: Option<&str>, args: &[String]) -> anyhow::Result<()> {
     validate_project(project, repo)?;
-    exec_in_project(project, repo, &["zsh".to_string()])
+    if args.is_empty() {
+        exec_in_project(project, repo, &["zsh".to_string()])
+    } else {
+        exec_in_project(project, repo, args)
+    }
 }
 
 /// Validate project exists and repo is valid.

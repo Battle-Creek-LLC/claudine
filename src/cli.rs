@@ -54,12 +54,17 @@ pub enum Command {
     },
 
     /// Open an interactive shell in a project's container
+    #[command(alias = "sh")]
     Shell {
         /// Name of the project
         project: String,
 
         /// Repository directory to use as working directory
         repo: Option<String>,
+
+        /// Command to run non-interactively (after --). Omit for interactive shell.
+        #[arg(last = true)]
+        args: Vec<String>,
     },
 
     /// Open the project in Zed via dev containers
