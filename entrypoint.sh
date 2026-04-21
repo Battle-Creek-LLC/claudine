@@ -27,15 +27,9 @@ fi
 # Ensure ~/.local/bin is on PATH for all shell types
 export PATH="/project/home/.local/bin:$PATH"
 
-# Capture the caller-provided HOME before gosu resets it to the passwd home.
-# gosu switches to the claude user but overwrites HOME with /home/claude;
-# we re-assert the intended value (e.g. /project/home) via env so SSH, git,
-# and other tools resolve configs and keys from the project home volume.
-_HOME="${HOME}"
-
 # Drop privileges and execute the requested command (or bash if none given)
 if [ $# -eq 0 ]; then
-    exec gosu claude env HOME="${_HOME}" zsh
+    exec gosu claude zsh
 else
-    exec gosu claude env HOME="${_HOME}" "$@"
+    exec gosu claude "$@"
 fi

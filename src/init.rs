@@ -1051,9 +1051,25 @@ pub fn clone_repo(
         ]);
     }
 
+    // OpenSSH resolves ~/.ssh via pw->pw_dir (getpwuid), not $HOME, so the
+    // claude user's passwd home (/home/claude) is always used regardless of
+    // the HOME env var. Point git at the correct key and known_hosts directly.
+    let has_ssh_key = project_config.as_ref()
+        .and_then(|c| c.ssh_key.as_ref())
+        .is_some();
+    let git_ssh_cmd = if has_ssh_key {
+        "ssh -i /project/home/.ssh/id_key -o IdentitiesOnly=yes \
+-o StrictHostKeyChecking=accept-new \
+-o UserKnownHostsFile=/project/home/.ssh/known_hosts"
+    } else {
+        "ssh -o StrictHostKeyChecking=accept-new"
+    };
+
     args.extend([
         "-e".to_string(),
         "HOME=/project/home".to_string(),
+        "-e".to_string(),
+        format!("GIT_SSH_COMMAND={}", git_ssh_cmd),
         image.to_string(),
     ]);
     args.extend(clone_cmd);

@@ -9,11 +9,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [0.1.1] - 2026-04-21
 
 ### Fixed
-- `repo add` SSH host key verification failure — `gosu` was resetting `HOME` to
-  `/home/claude` (the passwd entry) after the container was started with
-  `-e HOME=/project/home`, causing SSH to look for keys and config in the wrong
-  directory. The entrypoint now preserves the caller-provided `HOME` via
-  `env HOME=` after the privilege drop.
+- `repo add` SSH host key verification failure — OpenSSH resolves `~/.ssh` via
+  `getpwuid()` (the passwd home `/home/claude`), not `$HOME`, so the key and
+  config in `/project/home/.ssh/` were never found. Clone containers now set
+  `GIT_SSH_COMMAND` with explicit `-i`, `UserKnownHostsFile`, and
+  `StrictHostKeyChecking=accept-new` pointing at `/project/home/.ssh/`.
 
 ## [0.1.0] - 2026-04-20
 
