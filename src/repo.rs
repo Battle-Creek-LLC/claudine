@@ -1,5 +1,3 @@
-use std::process::Command;
-
 use dialoguer::Confirm;
 
 use crate::cli::RepoCommand;
@@ -34,12 +32,13 @@ fn repo_add(
 
     let mut project_config = config::load_project(project_name)?;
 
-    // Verify the project has a workspace (bind host dir or legacy volume).
-    let has_workspace = match &project_config.host_dir {
-        Some(dir) => std::path::Path::new(dir).exists(),
-        None => project::volume_exists(project_name)?,
-    };
-    if !has_workspace {
+    let host_dir = project_config.host_dir.as_deref()
+        .map(std::path::Path::new)
+        .map(|p| p.to_owned())
+        .unwrap_or_else(|| {
+            project::default_host_dir(project_name).unwrap_or_default()
+        });
+    if !host_dir.exists() {
         anyhow::bail!(
             "Project '{}' is not initialized. Run 'claudine init {}' first.",
             project_name,
@@ -113,45 +112,17 @@ fn repo_remove(project_name: &str, dir: &str) -> anyhow::Result<()> {
         anyhow::bail!("Remove cancelled.");
     }
 
-    // Remove the directory from the workspace
-    let global_config = config::load_global()?;
-    let image = config::resolve_image(&project_config, &global_config);
-
-    let status = if let Some(ref host_dir) = project_config.host_dir {
-        // New layout: directly delete on host filesystem
-        let target = std::path::Path::new(host_dir).join(dir);
-        if target.exists() {
-            std::fs::remove_dir_all(&target)
-                .map_err(|e| anyhow::anyhow!("Failed to remove '{}': {e}", target.display()))?;
-        }
-        None
-    } else {
-        // Legacy: remove via one-shot container against the volume
-        let rm_target = format!("/project/{}", dir);
-        Some(Command::new("docker")
-            .args([
-                "run",
-                "--rm",
-                "-v",
-                &format!("{}:/project", project::volume_name(project_name)),
-                &image,
-                "rm",
-                "-rf",
-                &rm_target,
-            ])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::inherit())
-            .status()
-            .map_err(|e| anyhow::anyhow!("Failed to run 'docker run' for removal: {e}"))?)
-    };
-
-    if let Some(s) = status {
-        if !s.success() {
-            eprintln!(
-                "Warning: failed to remove directory '{}' from volume (exit code: {}).",
-                dir, s
-            );
-        }
+    // Remove the directory directly from the host filesystem
+    let host_dir = project_config.host_dir.as_deref()
+        .map(std::path::Path::new)
+        .map(|p| p.to_owned())
+        .unwrap_or_else(|| {
+            project::default_host_dir(project_name).unwrap_or_default()
+        });
+    let target = host_dir.join(dir);
+    if target.exists() {
+        std::fs::remove_dir_all(&target)
+            .map_err(|e| anyhow::anyhow!("Failed to remove '{}': {e}", target.display()))?;
     }
 
     // Update and save config

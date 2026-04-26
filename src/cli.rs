@@ -84,15 +84,9 @@ pub enum Command {
         /// Also remove the Docker volume and project config
         #[arg(long)]
         purge: bool,
-    },
 
-    /// Migrate a project from legacy single-volume to bind+home-volume layout
-    Migrate {
-        /// Name of the project to migrate
-        project: String,
-
-        /// Skip confirmation prompts
-        #[arg(long)]
+        /// Skip confirmation prompt
+        #[arg(long, short = 'y')]
         yes: bool,
     },
 

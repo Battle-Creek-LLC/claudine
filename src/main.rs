@@ -4,7 +4,6 @@ mod devcontainer;
 mod docker;
 mod init;
 mod layer;
-mod migrate;
 mod project;
 mod repo;
 mod resolve;
@@ -63,13 +62,9 @@ fn main() -> anyhow::Result<()> {
             let repo = repo.map(|r| resolve::repo(&project, &r)).transpose()?;
             devcontainer::cmd_zed(&project, repo.as_deref())
         }
-        Command::Destroy { project, purge } => {
+        Command::Destroy { project, purge, yes } => {
             let project = resolve::project(&project)?;
-            docker::cmd_destroy(&project, purge)
-        }
-        Command::Migrate { project, yes } => {
-            let project = resolve::project(&project)?;
-            migrate::cmd_migrate(&project, yes)
+            docker::cmd_destroy(&project, purge, yes)
         }
         Command::List => docker::cmd_list(),
         Command::Layer { command } => match command {

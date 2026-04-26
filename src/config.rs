@@ -15,9 +15,8 @@ pub struct ProjectConfig {
     pub ssh_key: Option<String>,
     pub layers: Option<Vec<String>>,
     pub image: Option<ImageConfig>,
-    /// When set, `/project` is a bind mount of this host directory and
-    /// `/project/home` is the separate home volume. When unset, the project
-    /// uses the legacy single-volume layout.
+    /// Host directory bind-mounted at the same absolute path inside the container.
+    /// Defaults to `~/projects/<name>/` when unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_dir: Option<String>,
 }

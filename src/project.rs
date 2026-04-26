@@ -47,12 +47,7 @@ pub fn validate_dir(dir: &str) -> anyhow::Result<()> {
     validate_safe_name(dir, "Directory name")
 }
 
-/// Return the Docker volume name for a project (legacy single-volume layout).
-pub fn volume_name(project: &str) -> String {
-    format!("claudine_{project}")
-}
-
-/// Return the Docker volume name for a project's HOME directory (new layout).
+/// Return the Docker volume name for a project's HOME directory.
 pub fn home_volume_name(project: &str) -> String {
     format!("claudine_{project}_home")
 }
@@ -62,24 +57,11 @@ pub fn container_name(project: &str) -> String {
     format!("claudine_{project}")
 }
 
-/// Default host-side project directory path: ~/projects/<project>/
-///
-/// Under the new bind-mount layout, repos are cloned here on the host and
-/// this path is bind-mounted into the container at `/project`.
+/// Default host-side project directory: ~/projects/<project>/
 pub fn default_host_dir(project: &str) -> anyhow::Result<std::path::PathBuf> {
     let home = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
     Ok(home.join("projects").join(project))
-}
-
-/// Return the host-side shared directory path for a project: ~/share/<project>/
-///
-/// Legacy layout: this is where devcontainer.json lives and where `claudine zed`
-/// opens. Preserved for backward compat with projects that have not migrated.
-pub fn share_dir(project: &str) -> anyhow::Result<std::path::PathBuf> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
-    Ok(home.join("share").join(project))
 }
 
 /// Check whether a Docker volume exists by name.
@@ -107,19 +89,6 @@ pub fn docker_volume_create(name: &str) -> anyhow::Result<()> {
         anyhow::bail!("Failed to create Docker volume '{name}'.");
     }
     Ok(())
-}
-
-/// Check whether the Docker volume for a project exists.
-pub fn volume_exists(project: &str) -> anyhow::Result<bool> {
-    let name = volume_name(project);
-    let status = Command::new("docker")
-        .args(["volume", "inspect", &name])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map_err(|e| anyhow::anyhow!("Failed to run 'docker volume inspect': {e}"))?;
-
-    Ok(status.success())
 }
 
 /// Check whether the Docker container for a project is currently running.
@@ -165,38 +134,6 @@ pub fn container_start(project: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Create a Docker volume for a project.
-pub fn create_volume(project: &str) -> anyhow::Result<()> {
-    let name = volume_name(project);
-    let status = Command::new("docker")
-        .args(["volume", "create", &name])
-        .stdout(std::process::Stdio::null())
-        .status()
-        .map_err(|e| anyhow::anyhow!("Failed to run 'docker volume create': {e}"))?;
-
-    if !status.success() {
-        anyhow::bail!("Failed to create Docker volume '{name}'.");
-    }
-
-    Ok(())
-}
-
-/// Remove the Docker volume for a project.
-pub fn remove_volume(project: &str) -> anyhow::Result<()> {
-    let name = volume_name(project);
-    let status = Command::new("docker")
-        .args(["volume", "rm", &name])
-        .stdout(std::process::Stdio::null())
-        .status()
-        .map_err(|e| anyhow::anyhow!("Failed to run 'docker volume rm': {e}"))?;
-
-    if !status.success() {
-        anyhow::bail!("Failed to remove Docker volume '{name}'.");
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,12 +170,6 @@ mod tests {
         assert!(validate_dir("home").is_err());
         assert!(validate_dir("../escape").is_err());
         assert!(validate_dir("-flag").is_err());
-    }
-
-    #[test]
-    fn volume_name_format() {
-        assert_eq!(volume_name("myproject"), "claudine_myproject");
-        assert_eq!(volume_name("test-123"), "claudine_test-123");
     }
 
     #[test]

@@ -13,68 +13,48 @@ pub fn generate(project: &str, repo: Option<&str>) -> anyhow::Result<String> {
         None => project::container_name(project),
     };
 
+    let host_dir = project_config.host_dir
+        .as_deref()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            project::default_host_dir(project)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default()
+        });
     let workspace_folder = match repo {
-        Some(r) => format!("/project/{}", r),
-        None => "/project".to_string(),
+        Some(r) => format!("{}/{}", host_dir, r),
+        None => host_dir.clone(),
     };
-
-    let json = if let Some(host_dir) = &project_config.host_dir {
-        // New layout: bind host_dir → /project, named volume for HOME
-        serde_json::json!({
-            "name": name,
-            "image": image,
-            "overrideCommand": true,
-            "remoteUser": "claude",
-            "workspaceMount": format!("source={},target=/project,type=bind", host_dir),
-            "workspaceFolder": workspace_folder,
-            "mounts": [
-                format!(
-                    "source={},target=/project/home,type=volume",
-                    project::home_volume_name(project)
-                ),
-                "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
-            ],
-            "runArgs": ["--shm-size=256m"],
-            "containerEnv": {
-                "HOME": "/project/home"
-            }
-        })
-    } else {
-        // Legacy layout: single volume at /project
-        serde_json::json!({
-            "name": name,
-            "image": image,
-            "overrideCommand": true,
-            "remoteUser": "claude",
-            "workspaceMount": format!(
-                "source={},target=/project,type=volume",
-                project::volume_name(project)
+    let json = serde_json::json!({
+        "name": name,
+        "image": image,
+        "overrideCommand": true,
+        "remoteUser": "claude",
+        "workspaceMount": format!("source={host_dir},target={host_dir},type=bind"),
+        "workspaceFolder": workspace_folder,
+        "mounts": [
+            format!(
+                "source={},target=/project/home,type=volume",
+                project::home_volume_name(project)
             ),
-            "workspaceFolder": workspace_folder,
-            "mounts": [
-                "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
-            ],
-            "runArgs": ["--shm-size=256m"],
-            "containerEnv": {
-                "HOME": "/project/home"
-            }
-        })
-    };
+            "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+        ],
+        "runArgs": ["--shm-size=256m"],
+        "containerEnv": {
+            "HOME": "/project/home"
+        }
+    });
 
     serde_json::to_string_pretty(&json)
         .map_err(|e| anyhow::anyhow!("Failed to serialize devcontainer.json: {e}"))
 }
 
 /// Return the base directory for devcontainer output.
-///
-/// Under the new bind layout (`host_dir` set in project config), this is the
-/// host_dir itself (or a repo subfolder). Under legacy layout, it falls back
-/// to `~/share/<project>/`.
 fn devcontainer_base(project: &str, repo: Option<&str>) -> anyhow::Result<std::path::PathBuf> {
     let project_config = config::load_project(project)?;
     let base = match &project_config.host_dir {
         Some(dir) => std::path::PathBuf::from(dir),
-        None => project::share_dir(project)?,
+        None => project::default_host_dir(project)?,
     };
 
     if !base.exists() {

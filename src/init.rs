@@ -22,12 +22,13 @@ pub fn cmd_init(name: &str, flag_ssh_key: Option<&str>, flag_repos: &[String], f
         );
     }
 
-    // Check if volume already exists
-    let volume_already_exists = project::volume_exists(name)?;
+    // Check if project already exists
+    let home_vol = project::home_volume_name(name);
+    let volume_already_exists = project::docker_volume_exists(&home_vol)?;
     if volume_already_exists && interactive {
         let proceed = Confirm::new()
             .with_prompt(format!(
-                "Volume already exists for '{}'. Re-initialize? This will not delete existing data.",
+                "Project '{}' already initialized. Re-initialize? This will not delete existing data.",
                 name
             ))
             .default(false)
@@ -136,11 +137,11 @@ pub fn cmd_init_agent(name: &str, agent_path: &str, flag_ssh_key: Option<&str>) 
     which::which("claude")
         .map_err(|_| anyhow::anyhow!("'claude' not found on PATH. Install Claude Code first."))?;
 
-    // Check if volume already exists
-    if project::volume_exists(name)? {
+    // Check if project already exists
+    if project::docker_volume_exists(&project::home_volume_name(name))? {
         let proceed = Confirm::new()
             .with_prompt(format!(
-                "Volume already exists for '{}'. Re-initialize? This will not delete existing data.",
+                "Project '{}' already initialized. Re-initialize? This will not delete existing data.",
                 name
             ))
             .default(false)
@@ -960,21 +961,19 @@ fn setup_home(
         "--rm".to_string(),
     ];
 
-    if let Some(ref dir) = host_dir {
-        // New layout: bind host dir, separate volume for HOME
-        args.extend([
-            "-v".to_string(),
-            format!("{}:/project", dir),
-            "-v".to_string(),
-            format!("{}:/project/home", project::home_volume_name(project_name)),
-        ]);
-    } else {
-        // Legacy layout: single volume at /project
-        args.extend([
-            "-v".to_string(),
-            format!("{}:/project", project::volume_name(project_name)),
-        ]);
-    }
+    let dir = host_dir.as_deref().map(std::path::Path::new)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| {
+            project::default_host_dir(project_name)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default()
+        });
+    args.extend([
+        "-v".to_string(),
+        format!("{}:{}", dir, dir),
+        "-v".to_string(),
+        format!("{}:/project/home", project::home_volume_name(project_name)),
+    ]);
 
     args.extend([
         "-v".to_string(),
@@ -1011,7 +1010,7 @@ fn setup_home(
     Ok(())
 }
 
-/// Clone a single repository into the project workspace (host bind or legacy volume).
+/// Clone a single repository into the project's host directory.
 /// Assumes setup_home has already run so SSH keys and git config are in the home volume.
 pub fn clone_repo(
     project_name: &str,
@@ -1021,8 +1020,10 @@ pub fn clone_repo(
     let project_config = config::load_project(project_name).ok();
     let host_dir = project_config.as_ref().and_then(|c| c.host_dir.clone());
 
-    // Clone command — clone into /project/<dir>
-    let clone_target = format!("/project/{}", repo.dir);
+    let clone_target = match &host_dir {
+        Some(dir) => format!("{}/{}", dir, repo.dir),
+        None => format!("/project/{}", repo.dir),
+    };
     let mut clone_cmd = vec!["git".to_string(), "clone".to_string()];
     if let Some(ref b) = repo.branch {
         clone_cmd.push("--branch".to_string());
@@ -1037,19 +1038,19 @@ pub fn clone_repo(
         "--rm".to_string(),
     ];
 
-    if let Some(ref dir) = host_dir {
-        args.extend([
-            "-v".to_string(),
-            format!("{}:/project", dir),
-            "-v".to_string(),
-            format!("{}:/project/home", project::home_volume_name(project_name)),
-        ]);
-    } else {
-        args.extend([
-            "-v".to_string(),
-            format!("{}:/project", project::volume_name(project_name)),
-        ]);
-    }
+    let bind_dir = host_dir.as_deref()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            project::default_host_dir(project_name)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default()
+        });
+    args.extend([
+        "-v".to_string(),
+        format!("{}:{}", bind_dir, bind_dir),
+        "-v".to_string(),
+        format!("{}:/project/home", project::home_volume_name(project_name)),
+    ]);
 
     // OpenSSH resolves ~/.ssh via pw->pw_dir (getpwuid), not $HOME, so the
     // claude user's passwd home (/home/claude) is always used regardless of

@@ -183,16 +183,13 @@ fn validate_project(project: &str, repo: Option<&str>) -> anyhow::Result<()> {
     project::validate_name(project)?;
     check_docker()?;
 
-    if !project::volume_exists(project)? {
-        anyhow::bail!(
+    let project_config = config::load_project(project)
+        .map_err(|_| anyhow::anyhow!(
             "Project '{}' is not initialized. Run 'claudine init {}' first.",
-            project,
-            project
-        );
-    }
+            project, project
+        ))?;
 
     if let Some(r) = repo {
-        let project_config = config::load_project(project)?;
         if !project_config.repos.iter().any(|rc| rc.dir == r) {
             let available: Vec<&str> = project_config.repos.iter().map(|rc| rc.dir.as_str()).collect();
             anyhow::bail!(
@@ -211,9 +208,16 @@ fn validate_project(project: &str, repo: Option<&str>) -> anyhow::Result<()> {
 fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) -> anyhow::Result<()> {
     use std::os::unix::process::CommandExt;
 
+    let host_dir = config::load_project(project).ok()
+        .and_then(|c| c.host_dir)
+        .unwrap_or_else(|| {
+            project::default_host_dir(project)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default()
+        });
     let workdir = match repo {
-        Some(r) => format!("/project/{}", r),
-        None => "/project".to_string(),
+        Some(r) => format!("{}/{}", host_dir, r),
+        None => host_dir,
     };
 
     // State 1: Container is running — exec into it
@@ -309,17 +313,15 @@ fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) 
 ///
 /// By default, only removes the container. With `purge: true`, also removes the
 /// Docker volume and project config directory.
-pub fn cmd_destroy(project: &str, purge: bool) -> anyhow::Result<()> {
+pub fn cmd_destroy(project: &str, purge: bool, yes: bool) -> anyhow::Result<()> {
     project::validate_name(project)?;
 
-    // Check that the project has some presence (config or volume)
-    let has_volume = project::volume_exists(project)?;
     let has_home_volume = project::docker_volume_exists(&project::home_volume_name(project))?;
     let has_container = project::container_exists(project)?;
     let config_dir = config::config_dir()?.join("projects").join(project);
     let has_config = config_dir.exists();
 
-    if !has_volume && !has_home_volume && !has_config && !has_container {
+    if !has_home_volume && !has_config && !has_container {
         anyhow::bail!(
             "No project '{}' found. Nothing to destroy.",
             project
@@ -332,7 +334,7 @@ pub fn cmd_destroy(project: &str, purge: bool) -> anyhow::Result<()> {
         format!("This will remove the container for '{}'. Volume and config are preserved. Continue?", project)
     };
 
-    let confirmed = Confirm::new()
+    let confirmed = yes || Confirm::new()
         .with_prompt(prompt_msg)
         .default(false)
         .interact()?;
@@ -366,11 +368,6 @@ pub fn cmd_destroy(project: &str, purge: bool) -> anyhow::Result<()> {
     }
 
     if purge {
-        // Remove the Docker volume(s)
-        if has_volume {
-            println!("Removing volume '{}'...", project::volume_name(project));
-            project::remove_volume(project)?;
-        }
         if has_home_volume {
             let hv = project::home_volume_name(project);
             println!("Removing volume '{}'...", hv);
@@ -384,7 +381,6 @@ pub fn cmd_destroy(project: &str, purge: bool) -> anyhow::Result<()> {
             }
         }
 
-        // Remove the project config directory
         if has_config {
             println!("Removing config directory...");
             std::fs::remove_dir_all(&config_dir).map_err(|e| {
@@ -397,7 +393,7 @@ pub fn cmd_destroy(project: &str, purge: bool) -> anyhow::Result<()> {
 
         println!("Project '{}' purged.", project);
     } else {
-        println!("Container for '{}' removed. Volume(s) and config preserved.", project);
+        println!("Container for '{}' removed. Volume and config preserved.", project);
     }
 
     Ok(())
@@ -435,7 +431,7 @@ pub fn cmd_list() -> anyhow::Result<()> {
             Err(_) => vec!["<config error>".to_string()],
         };
 
-        let status = if !project::volume_exists(name).unwrap_or(false) {
+        let status = if !project::docker_volume_exists(&project::home_volume_name(name)).unwrap_or(false) {
             "no volume".to_string()
         } else if project::container_running(name).unwrap_or(false) {
             "running".to_string()
@@ -485,56 +481,36 @@ pub fn cmd_list() -> anyhow::Result<()> {
 /// This function is shared between `cmd_run` and `cmd_shell` to ensure
 /// consistent container configuration.
 pub(crate) fn build_run_args(project: &str, image: &str, repo: Option<&str>) -> Vec<String> {
-    // Determine layout from project config (bind+home-volume vs legacy full volume)
     let project_config = config::load_project(project).ok();
-    let host_dir = project_config.as_ref().and_then(|c| c.host_dir.clone());
+    let host_dir = project_config
+        .as_ref()
+        .and_then(|c| c.host_dir.clone())
+        .unwrap_or_else(|| {
+            project::default_host_dir(project)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default()
+        });
 
     let mut args = vec![
         "run".to_string(),
         "-d".to_string(),
         "--name".to_string(),
         project::container_name(project),
-    ];
-
-    if let Some(ref dir) = host_dir {
-        // New layout: bind host dir, separate volume for HOME
-        args.extend([
-            "-v".to_string(),
-            format!("{}:/project", dir),
-            "-v".to_string(),
-            format!("{}:/project/home", project::home_volume_name(project)),
-        ]);
-    } else {
-        // Legacy layout: single volume at /project
-        args.extend([
-            "-v".to_string(),
-            format!("{}:/project", project::volume_name(project)),
-        ]);
-
-        // Mount the shared directory if it exists (legacy only)
-        if let Ok(share) = project::share_dir(project) {
-            if share.exists() {
-                args.push("-v".to_string());
-                args.push(format!("{}:/share", share.display()));
-            }
-        }
-    }
-
-    args.extend([
+        "-v".to_string(),
+        format!("{}:{}", host_dir, host_dir),
+        "-v".to_string(),
+        format!("{}:/project/home", project::home_volume_name(project)),
         "-v".to_string(),
         "/var/run/docker.sock:/var/run/docker.sock".to_string(),
-    ]);
-
-    args.push("-w".to_string());
-    match repo {
-        Some(r) => args.push(format!("/project/{}", r)),
-        None => args.push("/project".to_string()),
-    };
-
-    args.push("-e".to_string());
-    args.push("HOME=/project/home".to_string());
-
-    args.push("--shm-size=256m".to_string());
+        "-w".to_string(),
+        match repo {
+            Some(r) => format!("{}/{}", host_dir, r),
+            None => host_dir.clone(),
+        },
+        "-e".to_string(),
+        "HOME=/project/home".to_string(),
+        "--shm-size=256m".to_string(),
+    ];
 
     // Only allocate a TTY if stdin is a terminal
     if std::io::stdin().is_terminal() {
