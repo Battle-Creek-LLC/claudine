@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     less \
     netcat-openbsd \
+    sudo \
     zsh \
     python3-pip \
     vim \
@@ -68,7 +69,9 @@ RUN cargo install just --root /usr/local \
 # (e.g. devcontainer UID remap) succeeds. Runtime HOME is overridden to
 # /project/home via containerEnv so shell state persists on the project volume.
 RUN useradd -m -d /home/claude -s /bin/zsh claude \
-    && chmod -R a+rwX /usr/local/rustup /usr/local/cargo
+    && chmod -R a+rwX /usr/local/rustup /usr/local/cargo \
+    && echo 'claude ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/claude \
+    && chmod 0440 /etc/sudoers.d/claude
 
 # Add alias and ensure ~/.local/bin is on PATH for all shell types
 RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> /etc/bash.bashrc \
