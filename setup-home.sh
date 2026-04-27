@@ -2,44 +2,35 @@
 set -euo pipefail
 
 # This script runs as root inside a one-shot container during `claudine init`.
-# It sets up /project/home (the HOME volume or nested subdir) with git config,
-# SSH key, and Claude settings. Claude auth is handled by the user inside the
-# container (not copied from host).
-#
-# Under the new bind-mount layout, /project is a host bind and is never chowned
-# here (host owns those files). Only /project/home (the HOME volume) is mutated.
+# It sets up /home/claude (the HOME volume) with git config, SSH key, and Claude
+# settings. Claude auth is handled by the user inside the container (not copied
+# from host).
 
 # Create and own home directory
-mkdir -p /project/home
-chown claude:claude /project/home
-
-# Legacy layout only: when /project/home is NOT a separate mountpoint, /project
-# is the single project volume and claude needs write access to it for cloning.
-if ! mountpoint -q /project/home; then
-    chown claude:claude /project
-fi
+mkdir -p /home/claude
+chown claude:claude /home/claude
 
 # gitconfig
 if [ -f /tmp/host-gitconfig ]; then
-    cp /tmp/host-gitconfig /project/home/.gitconfig
-    chown claude:claude /project/home/.gitconfig
+    cp /tmp/host-gitconfig /home/claude/.gitconfig
+    chown claude:claude /home/claude/.gitconfig
 fi
 
 # SSH key
 if [ -f /tmp/host-ssh-key ]; then
-    mkdir -p /project/home/.ssh
-    cp /tmp/host-ssh-key /project/home/.ssh/id_key
-    chmod 700 /project/home/.ssh
-    chmod 600 /project/home/.ssh/id_key
-    chown -R claude:claude /project/home/.ssh
-    printf 'Host *\n    IdentityFile /project/home/.ssh/id_key\n    IdentitiesOnly yes\n    StrictHostKeyChecking accept-new\n' > /project/home/.ssh/config
-    chmod 600 /project/home/.ssh/config
-    chown claude:claude /project/home/.ssh/config
+    mkdir -p /home/claude/.ssh
+    cp /tmp/host-ssh-key /home/claude/.ssh/id_key
+    chmod 700 /home/claude/.ssh
+    chmod 600 /home/claude/.ssh/id_key
+    chown -R claude:claude /home/claude/.ssh
+    printf 'Host *\n    IdentityFile /home/claude/.ssh/id_key\n    IdentitiesOnly yes\n    StrictHostKeyChecking accept-new\n' > /home/claude/.ssh/config
+    chmod 600 /home/claude/.ssh/config
+    chown claude:claude /home/claude/.ssh/config
 fi
 
 # Write container-specific Claude settings
-mkdir -p /project/home/.claude
-cat > /project/home/.claude/settings.json <<'SETTINGS'
+mkdir -p /home/claude/.claude
+cat > /home/claude/.claude/settings.json <<'SETTINGS'
 {
   "permissions": {
     "allow": [
@@ -96,25 +87,25 @@ cat > /project/home/.claude/settings.json <<'SETTINGS'
   }
 }
 SETTINGS
-chown -R claude:claude /project/home/.claude
+chown -R claude:claude /home/claude/.claude
 
 # Seed terra config into the user's home if the terra layer is installed
 if [ -d /opt/terra-defaults ]; then
-    mkdir -p /project/home/.terra
-    if [ -f /opt/terra-defaults/services.toml ] && [ ! -f /project/home/.terra/services.toml ]; then
-        cp /opt/terra-defaults/services.toml /project/home/.terra/services.toml
+    mkdir -p /home/claude/.terra
+    if [ -f /opt/terra-defaults/services.toml ] && [ ! -f /home/claude/.terra/services.toml ]; then
+        cp /opt/terra-defaults/services.toml /home/claude/.terra/services.toml
     fi
-    if [ -f /opt/terra-defaults/agents.yaml ] && [ ! -f /project/home/.terra/agents.yaml ]; then
-        cp /opt/terra-defaults/agents.yaml /project/home/.terra/agents.yaml
+    if [ -f /opt/terra-defaults/agents.yaml ] && [ ! -f /home/claude/.terra/agents.yaml ]; then
+        cp /opt/terra-defaults/agents.yaml /home/claude/.terra/agents.yaml
     fi
-    chown -R claude:claude /project/home/.terra
+    chown -R claude:claude /home/claude/.terra
 fi
 
 # Install claude CLI at ~/.local/bin (where Claude Code expects to find itself)
-mkdir -p /project/home/.local/bin
-cp /usr/local/bin/claude /project/home/.local/bin/claude
-chmod 755 /project/home/.local/bin/claude
-chown -R claude:claude /project/home/.local
+mkdir -p /home/claude/.local/bin
+cp /usr/local/bin/claude /home/claude/.local/bin/claude
+chmod 755 /home/claude/.local/bin/claude
+chown -R claude:claude /home/claude/.local
 
 # git safe directory
 gosu claude git config --global --add safe.directory '*'

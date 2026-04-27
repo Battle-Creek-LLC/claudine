@@ -65,9 +65,8 @@ RUN git clone https://github.com/jstockdi/ward.git /tmp/ward \
 RUN cargo install just --root /usr/local \
     && chmod -R a+rwX /usr/local/cargo
 
-# Create non-root user with a real home dir in the image so build-time chown
-# (e.g. devcontainer UID remap) succeeds. Runtime HOME is overridden to
-# /project/home via containerEnv so shell state persists on the project volume.
+# Create non-root user. The home volume is mounted at /home/claude at runtime,
+# shadowing the image's /home/claude so shell state persists across containers.
 RUN useradd -m -d /home/claude -s /bin/zsh claude \
     && chmod -R a+rwX /usr/local/rustup /usr/local/cargo \
     && echo 'claude ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/claude \

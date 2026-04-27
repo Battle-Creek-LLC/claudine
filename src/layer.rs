@@ -199,7 +199,7 @@ pub fn catalog() -> Vec<Layer> {
                     && mkdir -p /opt/terra-defaults \\\n\
                     && printf '[endpoints]\\nsunlight = \"http://host.docker.internal:50061\"\\n' > /opt/terra-defaults/services.toml \\\n\
                     && printf 'default_agent: claude\\n\\nagents:\\n  claude:\\n    command: \"npx\"\\n    args: [\"@zed-industries/claude-agent-acp\"]\\n    protocol: acp\\n    models:\\n      default: opus\\n      available: [sonnet, opus, haiku]\\n    description: \"Claude Code via ACP adapter\"\\n\\ninstalled:\\n  - claude\\n\\ndefaults:\\n  agent: claude\\n  model: opus\\n\\nby_type:\\n  enrichment:\\n    model: haiku\\n  planning:\\n    model: opus\\n' > /opt/terra-defaults/agents.yaml\n\
-                ENV TERRA_HOME=/project/home/.terra".to_string(),
+                ENV TERRA_HOME=/home/claude/.terra".to_string(),
             validate: &["sp --help", "guild --help"],
             path: &[],
             source_repo: Some("git@github.com:sprouted-dev/terra.git"),
@@ -275,11 +275,11 @@ const BASE_PATH: &[&str] = &[
 
 /// Compute the full PATH for a project based on its installed layers.
 ///
-/// Prepends `/project/home/.local/bin` and any layer-specific paths (in catalog
+/// Prepends `/home/claude/.local/bin` and any layer-specific paths (in catalog
 /// order) before the standard system PATH.
 pub fn compute_path(layers: &[String]) -> String {
     let cat = catalog();
-    let mut entries: Vec<&str> = vec!["/project/home/.local/bin"];
+    let mut entries: Vec<&str> = vec!["/home/claude/.local/bin"];
 
     for layer in &cat {
         if layers.iter().any(|n| n == layer.name) {
@@ -908,7 +908,7 @@ mod tests {
         assert!(result.contains("/opt/terra-defaults/services.toml"));
         assert!(result.contains("/opt/terra-defaults/agents.yaml"));
         assert!(result.contains("default_agent: claude"));
-        assert!(result.contains("ENV TERRA_HOME=/project/home/.terra"));
+        assert!(result.contains("ENV TERRA_HOME=/home/claude/.terra"));
         assert!(
             !result.contains("/etc/terra"),
             "terra config must live under the user's home, not /etc/terra"
@@ -1007,7 +1007,7 @@ mod tests {
     fn compute_path_no_layers() {
         let layers: Vec<String> = vec![];
         let path = compute_path(&layers);
-        assert!(path.starts_with("/project/home/.local/bin:"));
+        assert!(path.starts_with("/home/claude/.local/bin:"));
         // Rust toolchain ships in the base image, so cargo/bin is always on PATH.
         assert!(path.contains("/usr/local/cargo/bin"));
         assert!(!path.contains("/usr/local/go/bin"));

@@ -34,14 +34,14 @@ pub fn generate(project: &str, repo: Option<&str>) -> anyhow::Result<String> {
         "workspaceFolder": workspace_folder,
         "mounts": [
             format!(
-                "source={},target=/project/home,type=volume",
+                "source={},target=/home/claude,type=volume",
                 project::home_volume_name(project)
             ),
             "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
         ],
         "runArgs": ["--shm-size=256m"],
         "containerEnv": {
-            "HOME": "/project/home"
+            "HOME": "/home/claude"
         }
     });
 

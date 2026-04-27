@@ -235,7 +235,7 @@ fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) 
 
         cmd.args(["-u", "claude"]);
         cmd.args(["-w", &workdir]);
-        cmd.args(["-e", "HOME=/project/home"]);
+        cmd.args(["-e", "HOME=/home/claude"]);
         cmd.args(["-e", &format!("PATH={}", path)]);
         cmd.arg(project::container_name(project));
         cmd.args(container_cmd);
@@ -261,7 +261,7 @@ fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) 
 
         cmd.args(["-u", "claude"]);
         cmd.args(["-w", &workdir]);
-        cmd.args(["-e", "HOME=/project/home"]);
+        cmd.args(["-e", "HOME=/home/claude"]);
         cmd.args(["-e", &format!("PATH={}", path)]);
         cmd.arg(project::container_name(project));
         cmd.args(container_cmd);
@@ -300,7 +300,7 @@ fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) 
 
     cmd.args(["-u", "claude"]);
     cmd.args(["-w", &workdir]);
-    cmd.args(["-e", "HOME=/project/home"]);
+    cmd.args(["-e", "HOME=/home/claude"]);
     cmd.args(["-e", &format!("PATH={}", path)]);
     cmd.arg(project::container_name(project));
     cmd.args(container_cmd);
@@ -499,7 +499,7 @@ pub(crate) fn build_run_args(project: &str, image: &str, repo: Option<&str>) -> 
         "-v".to_string(),
         format!("{}:{}", host_dir, host_dir),
         "-v".to_string(),
-        format!("{}:/project/home", project::home_volume_name(project)),
+        format!("{}:/home/claude", project::home_volume_name(project)),
         "-v".to_string(),
         "/var/run/docker.sock:/var/run/docker.sock".to_string(),
         "-w".to_string(),
@@ -508,7 +508,7 @@ pub(crate) fn build_run_args(project: &str, image: &str, repo: Option<&str>) -> 
             None => host_dir.clone(),
         },
         "-e".to_string(),
-        "HOME=/project/home".to_string(),
+        "HOME=/home/claude".to_string(),
         "--shm-size=256m".to_string(),
     ];
 

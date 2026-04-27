@@ -11,21 +11,21 @@ if [ -S /var/run/docker.sock ]; then
     usermod -aG "${DOCKER_GROUP_NAME}" claude
 fi
 
-# Ensure /project/home belongs to the current claude UID. The HOME volume was
+# Ensure /home/claude belongs to the current claude UID. The HOME volume was
 # seeded by setup-home as root; after Zed's UID remap (or any passwd change)
 # claude's UID may differ, so reassert ownership every startup.
-if [ -d /project/home ]; then
-    chown -R claude:claude /project/home 2>/dev/null || true
+if [ -d /home/claude ]; then
+    chown -R claude:claude /home/claude 2>/dev/null || true
 fi
 
 # Seed a default .zshrc on first run so zsh-newuser-install doesn't prompt
-if [ ! -f /project/home/.zshrc ] && [ -f /etc/zsh/newuser.zshrc.recommended ]; then
+if [ ! -f /home/claude/.zshrc ] && [ -f /etc/zsh/newuser.zshrc.recommended ]; then
     install -o claude -g claude -m 0644 \
-        /etc/zsh/newuser.zshrc.recommended /project/home/.zshrc
+        /etc/zsh/newuser.zshrc.recommended /home/claude/.zshrc
 fi
 
 # Ensure ~/.local/bin is on PATH for all shell types
-export PATH="/project/home/.local/bin:$PATH"
+export PATH="/home/claude/.local/bin:$PATH"
 
 # Drop privileges and execute the requested command (or bash if none given)
 if [ $# -eq 0 ]; then

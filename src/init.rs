@@ -799,7 +799,7 @@ fn execute_init(
         println!("Created host directory: {}", host_dir.display());
     }
 
-    // Create the HOME volume (holds /project/home only)
+    // Create the HOME volume (mounted at /home/claude)
     let home_volume = project::home_volume_name(name);
     if !project::docker_volume_exists(&home_volume)? {
         println!("Creating home volume '{}'...", home_volume);
@@ -972,7 +972,7 @@ fn setup_home(
         "-v".to_string(),
         format!("{}:{}", dir, dir),
         "-v".to_string(),
-        format!("{}:/project/home", project::home_volume_name(project_name)),
+        format!("{}:/home/claude", project::home_volume_name(project_name)),
     ]);
 
     args.extend([
@@ -1049,7 +1049,7 @@ pub fn clone_repo(
         "-v".to_string(),
         format!("{}:{}", bind_dir, bind_dir),
         "-v".to_string(),
-        format!("{}:/project/home", project::home_volume_name(project_name)),
+        format!("{}:/home/claude", project::home_volume_name(project_name)),
     ]);
 
     // OpenSSH resolves ~/.ssh via pw->pw_dir (getpwuid), not $HOME, so the
@@ -1059,16 +1059,16 @@ pub fn clone_repo(
         .and_then(|c| c.ssh_key.as_ref())
         .is_some();
     let git_ssh_cmd = if has_ssh_key {
-        "ssh -i /project/home/.ssh/id_key -o IdentitiesOnly=yes \
+        "ssh -i /home/claude/.ssh/id_key -o IdentitiesOnly=yes \
 -o StrictHostKeyChecking=accept-new \
--o UserKnownHostsFile=/project/home/.ssh/known_hosts"
+-o UserKnownHostsFile=/home/claude/.ssh/known_hosts"
     } else {
         "ssh -o StrictHostKeyChecking=accept-new"
     };
 
     args.extend([
         "-e".to_string(),
-        "HOME=/project/home".to_string(),
+        "HOME=/home/claude".to_string(),
         "-e".to_string(),
         format!("GIT_SSH_COMMAND={}", git_ssh_cmd),
         image.to_string(),
