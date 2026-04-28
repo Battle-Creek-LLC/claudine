@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     git \
     jq \
+    libdbus-1-dev \
     libssl-dev \
     unzip \
     openssh-client \

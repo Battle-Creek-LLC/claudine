@@ -6,6 +6,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `libdbus-1-dev` in the base image so projects linking dbus-rs / zbus build
+  out of the box.
+
 ## [0.2.1] - 2026-04-27
 
 ### Fixed
