@@ -70,10 +70,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/jstockdi/claudine/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/jstockdi/claudine/compare/v0.2.1...v0.3.0
-[0.2.1]: https://github.com/jstockdi/claudine/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/jstockdi/claudine/compare/v0.1.2...v0.2.0
-[0.1.2]: https://github.com/jstockdi/claudine/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/jstockdi/claudine/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/jstockdi/claudine/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.1.2...v0.2.0
+[0.1.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/Battle-Creek-LLC/claudine/releases/tag/v0.1.0
