@@ -6,6 +6,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-02
+
+### Added
+- `pnpm` is now pre-installed (via `corepack prepare pnpm@latest --activate`)
+  in the `node-20`, `node-22`, and `node-24` layers, so the binary is baked
+  into the image instead of downloaded on first use.
+- `SECURITY.md` documenting the project's vulnerability reporting policy.
+- GitHub Actions `dependency-review` workflow that flags risky dependency
+  changes on pull requests.
+
 ## [0.3.0] - 2026-04-28
 
 ### Added
@@ -70,7 +80,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.1.2...v0.2.0
