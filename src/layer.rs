@@ -200,7 +200,7 @@ pub fn catalog() -> Vec<Layer> {
             description: "Sentry read-side CLI",
             requires: &[],
             build_tool: None,
-            dockerfile: "ARG SNTRY_VERSION=0.1.1\nRUN cargo binstall -y --root /usr/local \"bcl-sntry@${SNTRY_VERSION}\"".to_string(),
+            dockerfile: "ARG SNTRY_VERSION=0.2.0\nRUN cargo binstall -y --root /usr/local \"bcl-sntry@${SNTRY_VERSION}\"".to_string(),
             validate: &["sntry --help"],
             path: &[],
             source_repo: None,
