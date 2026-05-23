@@ -6,12 +6,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-05-23
+
 ### Added
 - Three new layers, all installed via `cargo binstall` from crates.io:
   `sntry` (Sentry read-side CLI, `bcl-sntry@0.2.0`), `ddog` (Datadog
-  logs CLI, `bcl-ddog@0.2.0`), and `secunit` (WISP control registry
-  helper CLI, `bcl-secunit@0.1.1`). Versions are pinned via
-  `ARG <NAME>_VERSION` in each layer's Dockerfile snippet.
+  logs CLI, `bcl-ddog@0.3.0`, including the `metrics query` command), and
+  `secunit` (WISP control registry helper CLI, `bcl-secunit@0.1.2`).
+  Versions are pinned via `ARG <NAME>_VERSION` in each layer's
+  Dockerfile snippet.
 
 ## [0.5.2] - 2026-05-06
 
@@ -132,7 +135,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.4.1...v0.5.0
