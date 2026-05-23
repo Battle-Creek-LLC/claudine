@@ -8,7 +8,6 @@ Map detected technologies to these exact layer names:
 
 | Layer | Matches |
 |--------|---------|
-| `node-20` | Node.js 20.x LTS |
 | `node-22` | Node.js 22.x LTS |
 | `node-24` | Node.js 24.x |
 | `gh` | GitHub CLI (recommend when repos use GitHub) |
@@ -69,7 +68,7 @@ When Node.js is detected:
 - Check `.nvmrc`, `.node-version`, or `engines` in `package.json`
 - If version starts with 24 → `node-24`
 - If version starts with 22 → `node-22`
-- Default to `node-20` if unspecified or version 20.x
+- Default to `node-22` if unspecified
 
 ### 5. Check for Environment Variables
 
@@ -101,7 +100,7 @@ claudine init <project-name> \
   --layer <layer2>
 ```
 
-Use a sensible project name derived from the folder name. Layer order matters — dependencies must come before dependents (e.g., `node-20` before `heroku`).
+Use a sensible project name derived from the folder name. Layer order matters — dependencies must come before dependents (e.g., `node-22` before `heroku`).
 
 If SSH is not needed, omit the `--ssh-key` flag.
 
