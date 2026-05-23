@@ -13,7 +13,6 @@ Map detected technologies to these exact layer names:
 | `gh` | GitHub CLI (recommend when repos use GitHub) |
 | `heroku` | Heroku CLI (requires a node layer) |
 | `python-venv` | Python 3 venv support |
-| `rust` | Rust toolchain |
 | `go` | Go toolchain |
 | `lin` | Linear CLI (recommend when .linear or linear references found) |
 | `glab` | GitLab CLI (recommend when repos use GitLab) |
@@ -39,7 +38,7 @@ For each repo, look for these indicators:
 **Languages & Runtimes:**
 - `package.json` or `node_modules/` → Node.js (check `engines` field for version, check for `pnpm-lock.yaml`/`yarn.lock`/`package-lock.json`)
 - `pyproject.toml`, `requirements.txt`, `Pipfile`, `setup.py`, or `*.py` files → Python
-- `Cargo.toml` → Rust
+- `Cargo.toml` → Rust (built into base image)
 - `go.mod` → Go
 - `Gemfile` → Ruby (no layer — note as unsupported)
 - `Dockerfile` or `docker-compose.yml` → Docker usage (built into base image)

@@ -318,7 +318,6 @@ Adding a plugin:
 | `node-24` | Node.js 24.x | — |
 | `heroku` | Heroku CLI | node-22 or node-24 |
 | `python-venv` | Python 3 venv support | — |
-| `rust` | Rust toolchain via rustup | — |
 
 Plugins are ordered by catalog position in the generated Dockerfile (dependencies before dependents).
 
