@@ -222,7 +222,7 @@ pub fn catalog() -> Vec<Layer> {
             description: "Datadog logs CLI",
             requires: &[],
             build_tool: None,
-            dockerfile: "ARG DDOG_VERSION=0.1.0\nRUN cargo binstall -y --root /usr/local \"bcl-ddog@${DDOG_VERSION}\"".to_string(),
+            dockerfile: "ARG DDOG_VERSION=0.3.0\nRUN cargo binstall -y --root /usr/local \"bcl-ddog@${DDOG_VERSION}\"".to_string(),
             validate: &["ddog --help"],
             path: &[],
             source_repo: None,
