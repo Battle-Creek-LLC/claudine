@@ -29,12 +29,6 @@ fn validate(layer: &str) {
 
 #[test]
 #[ignore]
-fn validate_node_20() {
-    validate("node-20");
-}
-
-#[test]
-#[ignore]
 fn validate_node_22() {
     validate("node-22");
 }
@@ -113,8 +107,8 @@ fn validate_sntry() {
 
 #[test]
 #[ignore]
-fn validate_secunit() {
-    validate("secunit");
+fn validate_secops() {
+    validate("secops");
 }
 
 #[test]

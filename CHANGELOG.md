@@ -6,6 +6,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-23
+
+### Added
+- `secops` layer bundling two security-ops CLIs in one layer, both installed
+  via `cargo binstall` from crates.io: `secunit` (WISP control registry
+  helper, `bcl-secunit@0.1.2`) and `repocat` (GitHub repository hardening,
+  `bcl-repocat@0.1.3`). Versions are pinned via `ARG <NAME>_VERSION`.
+
+### Removed
+- `secunit` layer — its tool is now part of the `secops` layer.
+- `node-20` layer (Node.js 20.x LTS is deprecated). Use `node-22` or
+  `node-24` instead. `heroku` now requires one of `node-22`/`node-24`.
+
 ## [0.6.0] - 2026-05-23
 
 ### Added
@@ -135,7 +148,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.0...v0.5.1

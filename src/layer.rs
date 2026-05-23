@@ -39,17 +39,6 @@ pub enum BuildTool {
 pub fn catalog() -> Vec<Layer> {
     vec![
         Layer {
-            name: "node-20",
-            description: "Node.js 20.x LTS",
-            requires: &[],
-            build_tool: None,
-            dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable \\\n    && corepack prepare pnpm@latest --activate".to_string(),
-            validate: &["node --version", "npm --version", "corepack --version", "pnpm --version"],
-            path: &[],
-            source_repo: None,
-            source_ref: None,
-        },
-        Layer {
             name: "node-22",
             description: "Node.js 22.x LTS",
             requires: &[],
@@ -85,7 +74,7 @@ pub fn catalog() -> Vec<Layer> {
         Layer {
             name: "heroku",
             description: "Heroku CLI",
-            requires: &["node-20", "node-22", "node-24"],
+            requires: &["node-22", "node-24"],
             build_tool: None,
             dockerfile: "RUN curl https://cli-assets.heroku.com/install.sh | sh".to_string(),
             validate: &["heroku --version"],
@@ -207,12 +196,15 @@ pub fn catalog() -> Vec<Layer> {
             source_ref: None,
         },
         Layer {
-            name: "secunit",
-            description: "WISP control registry helper CLI",
+            name: "secops",
+            description: "Security ops CLIs: secunit (WISP control registry) + repocat (GitHub repo hardening)",
             requires: &[],
             build_tool: None,
-            dockerfile: "ARG SECUNIT_VERSION=0.1.2\nRUN cargo binstall -y --root /usr/local \"bcl-secunit@${SECUNIT_VERSION}\"".to_string(),
-            validate: &["secunit --help"],
+            dockerfile: "ARG SECUNIT_VERSION=0.1.2\n\
+                ARG REPOCAT_VERSION=0.1.3\n\
+                RUN cargo binstall -y --root /usr/local \"bcl-secunit@${SECUNIT_VERSION}\"\n\
+                RUN cargo binstall -y --root /usr/local \"bcl-repocat@${REPOCAT_VERSION}\"".to_string(),
+            validate: &["secunit --help", "repocat --help"],
             path: &[],
             source_repo: None,
             source_ref: None,
@@ -818,7 +810,7 @@ mod tests {
 
     #[test]
     fn find_existing_layer() {
-        assert!(find("node-20").is_some());
+        assert!(find("node-22").is_some());
         assert!(find("heroku").is_some());
         assert!(find("go").is_some());
     }
@@ -831,19 +823,19 @@ mod tests {
     #[test]
     fn check_requires_no_deps() {
         let installed = vec![];
-        assert!(check_requires("node-20", &installed).is_ok());
+        assert!(check_requires("node-22", &installed).is_ok());
         assert!(check_requires("python-venv", &installed).is_ok());
     }
 
     #[test]
     fn check_requires_satisfied() {
-        let installed = vec!["node-20".to_string()];
+        let installed = vec!["node-22".to_string()];
         assert!(check_requires("heroku", &installed).is_ok());
     }
 
     #[test]
     fn check_requires_satisfied_alt() {
-        let installed = vec!["node-22".to_string()];
+        let installed = vec!["node-24".to_string()];
         assert!(check_requires("heroku", &installed).is_ok());
     }
 
@@ -854,28 +846,28 @@ mod tests {
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("requires one of"));
-        assert!(msg.contains("node-20"));
+        assert!(msg.contains("node-22"));
     }
 
     #[test]
     fn generate_dockerfile_single() {
-        let layers = vec!["node-20".to_string()];
+        let layers = vec!["node-22".to_string()];
         let result = generate_dockerfile(&layers).unwrap();
         assert!(result.starts_with("FROM claudine:latest"));
-        assert!(result.contains("# Layer: node-20"));
-        assert!(result.contains("setup_20.x"));
+        assert!(result.contains("# Layer: node-22"));
+        assert!(result.contains("setup_22.x"));
     }
 
     #[test]
     fn generate_dockerfile_multiple_ordered() {
-        // Install heroku first, node-20 second — output should be node-20 first (catalog order)
-        let layers = vec!["heroku".to_string(), "node-20".to_string()];
+        // Install heroku first, node-22 second — output should be node-22 first (catalog order)
+        let layers = vec!["heroku".to_string(), "node-22".to_string()];
         let result = generate_dockerfile(&layers).unwrap();
-        let node_pos = result.find("# Layer: node-20").unwrap();
+        let node_pos = result.find("# Layer: node-22").unwrap();
         let heroku_pos = result.find("# Layer: heroku").unwrap();
         assert!(
             node_pos < heroku_pos,
-            "node-20 should appear before heroku in the Dockerfile"
+            "node-22 should appear before heroku in the Dockerfile"
         );
     }
 
@@ -898,7 +890,6 @@ mod tests {
     fn catalog_has_expected_layers() {
         let cat = catalog();
         let names: Vec<&str> = cat.iter().map(|p| p.name).collect();
-        assert!(names.contains(&"node-20"));
         assert!(names.contains(&"node-22"));
         assert!(names.contains(&"node-24"));
         assert!(names.contains(&"heroku"));
@@ -911,7 +902,9 @@ mod tests {
         assert!(names.contains(&"exp"));
         assert!(names.contains(&"sumo"));
         assert!(names.contains(&"sntry"));
-        assert!(names.contains(&"secunit"));
+        assert!(names.contains(&"secops"));
+        assert!(!names.contains(&"secunit"));
+        assert!(!names.contains(&"node-20"));
         assert!(names.contains(&"ddog"));
         assert!(names.contains(&"terraform"));
         assert!(names.contains(&"doctl"));
@@ -1000,7 +993,6 @@ mod tests {
     fn heroku_requires_node() {
         let heroku = find("heroku").unwrap();
         assert!(!heroku.requires.is_empty());
-        assert!(heroku.requires.contains(&"node-20"));
         assert!(heroku.requires.contains(&"node-22"));
         assert!(heroku.requires.contains(&"node-24"));
     }
@@ -1037,7 +1029,7 @@ mod tests {
     #[test]
     fn collect_validation_layers_with_deps() {
         let layers = collect_validation_layers("heroku").unwrap();
-        assert_eq!(layers, vec!["node-20", "heroku"]);
+        assert_eq!(layers, vec!["node-22", "heroku"]);
     }
 
     #[test]

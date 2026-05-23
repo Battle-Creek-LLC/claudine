@@ -141,7 +141,7 @@ name = "claudine:latest"
 **Project config** (`projects/<project>/config.toml`):
 ```toml
 ssh_key = "/Users/you/.ssh/my_key"
-plugins = ["node-20", "heroku"]
+plugins = ["node-22", "heroku"]
 
 [[repos]]
 url = "git@github.com:user/frontend.git"
@@ -296,7 +296,7 @@ Plugins are curated Dockerfile snippets baked into the claudine binary. They add
 
 ```bash
 claudine plugin available          # show catalog
-claudine plugin add myproject node-20   # add Node.js 20
+claudine plugin add myproject node-22   # add Node.js 22
 claudine plugin add myproject heroku    # add Heroku CLI (requires node)
 claudine plugin list myproject          # show installed
 claudine plugin remove myproject heroku # remove
@@ -304,7 +304,7 @@ claudine plugin remove myproject heroku # remove
 
 Adding a plugin:
 1. Validates the plugin exists in the catalog
-2. Checks requirements (e.g., heroku requires any of node-20/22/24)
+2. Checks requirements (e.g., heroku requires any of node-22/24)
 3. Adds the plugin name to the project config
 4. Generates a Dockerfile from `claudine:latest` + all installed plugin snippets
 5. Builds and tags `claudine:<project>`
@@ -314,12 +314,10 @@ Adding a plugin:
 
 | Plugin | Description | Requires |
 |--------|-------------|----------|
-| `node-20` | Node.js 20.x LTS | — |
 | `node-22` | Node.js 22.x LTS | — |
 | `node-24` | Node.js 24.x | — |
-| `heroku` | Heroku CLI | node-20, node-22, or node-24 |
+| `heroku` | Heroku CLI | node-22 or node-24 |
 | `python-venv` | Python 3 venv support | — |
-| `rust` | Rust toolchain via rustup | — |
 
 Plugins are ordered by catalog position in the generated Dockerfile (dependencies before dependents).
 

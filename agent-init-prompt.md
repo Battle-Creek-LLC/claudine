@@ -10,7 +10,7 @@ Do NOT use any tools. All the information you need is in the prescan data.
 
 ## Rules
 - `git@` remotes mean SSH is required
-- Dependencies must come before dependents in the layers list (e.g. `node-20` before `heroku`)
+- Dependencies must come before dependents in the layers list (e.g. `node-22` before `heroku`)
 - If tech is detected that has no matching layer, add it to `suggested_layers`
 - Only include layers clearly needed by the project
 - Tech stack detection applies to ALL repos, including local-only ones without remotes

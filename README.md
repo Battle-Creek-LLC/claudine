@@ -55,13 +55,13 @@ claudine completions <shell>             Generate shell completions
 Add project-specific tools without writing Dockerfiles:
 
 ```bash
-claudine layer add myproject node-20    # add Node.js 20
+claudine layer add myproject node-22    # add Node.js 22
 claudine layer add myproject heroku     # add Heroku CLI (requires node)
 ```
 
 Every `layer add`, `layer remove`, and `build <project>` automatically runs validation checks against the final image to catch installation failures and conflicts.
 
-Available layers: `node-20`, `node-22`, `node-24`, `gh`, `heroku`, `python-venv`, `rust`, `go`, `java`, `flyway`, `aws`, `terraform`, `doctl`, `lin`, `exp`, `sumo`, `sntry`, `secunit`, `ddog`, `terra`, `glab`, `rodney`
+Available layers: `node-22`, `node-24`, `gh`, `heroku`, `python-venv`, `msodbc`, `postgres`, `go`, `java`, `flyway`, `lin`, `exp`, `sumo`, `sntry`, `secops`, `ddog`, `terra`, `glab`, `aws`, `terraform`, `doctl`, `rodney`
 
 ### Standalone Validation
 
