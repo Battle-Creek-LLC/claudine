@@ -235,7 +235,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "ARG SECUNIT_VERSION=0.1.2\n\
                 ARG REPOCAT_VERSION=0.4.0\n\
                 RUN cargo binstall -y --root /usr/local \"bcl-secunit@${SECUNIT_VERSION}\"\n\
-                RUN cargo binstall -y --root /usr/local \"bcl-repocat@${REPOCAT_VERSION}\"".to_string(),
+                RUN cargo binstall -y --disable-strategies compile --root /usr/local \"bcl-repocat@${REPOCAT_VERSION}\"".to_string(),
             validate: &["secunit --help", "repocat --help"],
             path: &[],
             source_repo: None,

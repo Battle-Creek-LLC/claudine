@@ -6,6 +6,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-05-25
+
+### Changed
+- `secops` layer installs `repocat` with `cargo binstall --disable-strategies
+  compile`, removing the silent fall back to building from source. If a
+  prebuilt `bcl-repocat` binary is ever unavailable for the target, the image
+  build now fails fast instead of pulling in a from-source compile. Verified
+  against `bcl-repocat@0.4.0`, which ships prebuilt binaries for both
+  `x86_64-` and `aarch64-unknown-linux-gnu`.
+
 ## [0.8.1] - 2026-05-25
 
 ### Changed
@@ -174,7 +184,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.6.0...v0.7.0
