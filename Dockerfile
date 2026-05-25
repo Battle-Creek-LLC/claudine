@@ -93,4 +93,14 @@ RUN chmod +x /entrypoint.sh
 
 WORKDIR /project
 
+# The entrypoint intentionally starts as root: it detects the host Docker
+# socket's GID and adds the 'claude' user to that group, and chowns the mounted
+# /home/claude volume so shell state is writable. Once that root-only setup is
+# done, entrypoint.sh drops privileges and runs the workload as the non-root
+# 'claude' user via `exec gosu claude ...`. The explicit `USER root` below
+# documents this intent; switching the final USER to 'claude' would break the
+# docker-socket GID setup and the home chown, so it is left as root on purpose.
+# The "missing non-root USER" scanner finding is a false positive and is
+# dismissed accordingly (refs #5).
+USER root
 ENTRYPOINT ["/entrypoint.sh"]
