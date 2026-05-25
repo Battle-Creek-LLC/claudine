@@ -6,6 +6,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-05-25
+
+### Changed
+- `secops` layer now pins `repocat` to `bcl-repocat@0.4.0` (was `0.1.3`),
+  picking up the `changelog` command. `secunit` stays at `0.1.2`.
+
 ## [0.8.0] - 2026-05-25
 
 ### Added
@@ -168,7 +174,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.2...v0.6.0
