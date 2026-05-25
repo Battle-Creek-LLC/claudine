@@ -6,6 +6,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-25
+
+### Added
+- `brdg` layer: installs the Battle-Creek-LLC `brdg` Python CLI from its
+  published GitHub release wheel (`v0.2.0`), installed with
+  `pip install --break-system-packages` to satisfy the base image's
+  PEP 668 externally-managed Python.
+- Release-asset layer source: a layer may declare a `release` (repo, tag,
+  asset glob) that claudine downloads host-side via `gh` into
+  `sources/<layer>/` before each build, then stages into the build context.
+  `gh` uses the host's authentication, so private release artifacts install
+  without exposing a token to the Docker build — mirroring how `source_repo`
+  uses the host's SSH key.
+
+### Changed
+- `source_ref` on a `source_repo` layer now resolves tags and commits, not
+  just remote branches. The checkout refresh fetches tags and reset-resolves
+  the ref via `origin/<ref>` (branch) or the ref verbatim (tag/commit),
+  erroring on an unresolvable ref instead of silently falling back.
+
 ## [0.7.0] - 2026-05-23
 
 ### Added
@@ -148,7 +168,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.5.1...v0.5.2

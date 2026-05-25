@@ -27,6 +27,24 @@ pub struct Layer {
     /// Optional git ref (branch, tag, or commit) to check out. Defaults to
     /// tracking the remote's default branch when `None`.
     pub source_ref: Option<&'static str>,
+    /// A GitHub release artifact to fetch host-side (via `gh`) instead of
+    /// cloning source. Downloaded into `<config>/sources/<layer-name>/` and
+    /// staged into the build context like any other source, so the Dockerfile
+    /// can `COPY` it. Mutually exclusive with `source_repo` in practice.
+    pub release: Option<ReleaseAsset>,
+}
+
+/// A published GitHub release artifact to download host-side and install,
+/// instead of building from a checkout. `gh` uses the host's authentication,
+/// so private releases work without exposing a token to the Docker build.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct ReleaseAsset {
+    /// `owner/name` of the GitHub repository hosting the release.
+    pub repo: &'static str,
+    /// Release tag to download (e.g. `v0.2.0`).
+    pub tag: &'static str,
+    /// Glob selecting which asset(s) to download (e.g. `*.whl`).
+    pub pattern: &'static str,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -48,6 +66,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "node-24",
@@ -59,6 +78,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "gh",
@@ -70,6 +90,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "heroku",
@@ -81,6 +102,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "python-venv",
@@ -92,6 +114,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "msodbc",
@@ -103,6 +126,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "postgres",
@@ -114,6 +138,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "go",
@@ -128,6 +153,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &["/usr/local/go/bin"],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "java",
@@ -139,6 +165,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "flyway",
@@ -150,6 +177,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "lin",
@@ -161,6 +189,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "exp",
@@ -172,6 +201,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "sumo",
@@ -183,6 +213,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "sntry",
@@ -194,6 +225,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "secops",
@@ -208,6 +240,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "ddog",
@@ -219,6 +252,25 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
+        },
+        Layer {
+            name: "brdg",
+            description: "brdg CLI (Battle-Creek-LLC, Python, installed from the release wheel)",
+            requires: &[],
+            build_tool: None,
+            dockerfile: "COPY brdg /tmp/brdg\n\
+                RUN pip install --no-cache-dir --break-system-packages /tmp/brdg/*.whl \\\n\
+                    && rm -rf /tmp/brdg".to_string(),
+            validate: &["brdg --help"],
+            path: &[],
+            source_repo: None,
+            source_ref: None,
+            release: Some(ReleaseAsset {
+                repo: "Battle-Creek-LLC/brdg",
+                tag: "v0.2.0",
+                pattern: "*.whl",
+            }),
         },
         Layer {
             name: "terra",
@@ -240,6 +292,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: Some("git@github.com:sprouted-dev/terra.git"),
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "glab",
@@ -251,6 +304,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "aws",
@@ -262,6 +316,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "terraform",
@@ -273,6 +328,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "doctl",
@@ -284,6 +340,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
         Layer {
             name: "rodney",
@@ -295,6 +352,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             source_repo: None,
             source_ref: None,
+            release: None,
         },
     ]
 }
@@ -906,6 +964,7 @@ mod tests {
         assert!(!names.contains(&"secunit"));
         assert!(!names.contains(&"node-20"));
         assert!(names.contains(&"ddog"));
+        assert!(names.contains(&"brdg"));
         assert!(names.contains(&"terraform"));
         assert!(names.contains(&"doctl"));
     }
@@ -967,6 +1026,23 @@ mod tests {
             .find("RUN export PATH=$PATH:/usr/local/cargo/bin && apt-get update")
             .unwrap();
         assert!(copy_pos < run_pos, "COPY must precede the RUN");
+    }
+
+    #[test]
+    fn brdg_layer_installs_from_release_wheel() {
+        let brdg = find("brdg").unwrap();
+        assert!(brdg.source_repo.is_none(), "brdg installs from a release, not a checkout");
+        let release = brdg.release.expect("brdg should declare a release asset");
+        assert_eq!(release.repo, "Battle-Creek-LLC/brdg");
+        assert_eq!(release.pattern, "*.whl");
+
+        let df = generate_dockerfile(&vec!["brdg".to_string()]).unwrap();
+        assert!(df.contains("COPY brdg /tmp/brdg"));
+        assert!(
+            df.contains("pip install --no-cache-dir --break-system-packages /tmp/brdg/*.whl"),
+            "brdg must install the staged wheel, got:\n{}",
+            df,
+        );
     }
 
     #[test]

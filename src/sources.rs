@@ -11,7 +11,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use crate::config;
-use crate::layer::Layer;
+use crate::layer::{Layer, ReleaseAsset};
 
 /// Directories that should never be copied into a Docker build context, either
 /// because they're enormous (build artefacts) or irrelevant (VCS metadata, OS
@@ -30,6 +30,10 @@ const DOCKERIGNORE: &str = "**/target\n**/.git\n**/node_modules\n**/.DS_Store\n"
 /// default branch). Claudine owns this directory, so a hard reset is
 /// intentional — any local edits will be discarded.
 pub fn ensure_source(layer: &Layer) -> anyhow::Result<()> {
+    if let Some(release) = layer.release {
+        return ensure_release(layer.name, &release);
+    }
+
     let Some(repo) = layer.source_repo else {
         return Ok(());
     };
@@ -63,13 +67,66 @@ pub fn ensure_source(layer: &Layer) -> anyhow::Result<()> {
     }
 
     println!("Refreshing {} checkout at {}...", layer.name, target.display());
-    run_git(&target, &["fetch", "--quiet", "--prune", "origin"])?;
+    run_git(&target, &["fetch", "--quiet", "--prune", "--tags", "origin"])?;
 
     let target_ref = match layer.source_ref {
-        Some(r) => format!("origin/{}", r),
+        Some(r) => resolve_ref(&target, r)?,
         None => resolve_default_branch(&target)?,
     };
     run_git(&target, &["reset", "--hard", &target_ref])?;
+
+    Ok(())
+}
+
+/// Download a layer's GitHub release asset(s) host-side via `gh`.
+///
+/// The target directory is wiped and re-populated each build so the pinned tag
+/// is authoritative. `gh` uses the host's authentication, so private releases
+/// download without ever exposing a token to the Docker build. The downloaded
+/// files are staged into the build context just like a source checkout.
+fn ensure_release(name: &str, release: &ReleaseAsset) -> anyhow::Result<()> {
+    let sources = config::sources_dir()?;
+    fs::create_dir_all(&sources).map_err(|e| {
+        anyhow::anyhow!("Failed to create sources directory {}: {e}", sources.display())
+    })?;
+
+    let target = sources.join(name);
+    if target.exists() {
+        fs::remove_dir_all(&target)
+            .map_err(|e| anyhow::anyhow!("Failed to clear {}: {e}", target.display()))?;
+    }
+    fs::create_dir_all(&target)
+        .map_err(|e| anyhow::anyhow!("Failed to create {}: {e}", target.display()))?;
+
+    println!(
+        "Downloading {} {} ({}) via gh into {}...",
+        release.repo,
+        release.tag,
+        release.pattern,
+        target.display()
+    );
+
+    let status = Command::new("gh")
+        .args([
+            "release", "download", release.tag,
+            "--repo", release.repo,
+            "--pattern", release.pattern,
+            "--dir",
+        ])
+        .arg(&target)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to run 'gh release download': {e}"))?;
+
+    if !status.success() {
+        anyhow::bail!(
+            "gh release download of {} {} ({}) failed",
+            release.repo,
+            release.tag,
+            release.pattern,
+        );
+    }
 
     Ok(())
 }
@@ -199,6 +256,42 @@ fn resolve_default_branch(cwd: &Path) -> anyhow::Result<String> {
     Ok("origin/HEAD".to_string())
 }
 
+/// Resolve a user-supplied `source_ref` (branch, tag, or commit) into a
+/// commit-ish that `git reset --hard` accepts after a fetch.
+///
+/// Remote branches live under `origin/<ref>`, while tags and commits are used
+/// verbatim. A remote branch wins when both forms exist; an unresolvable ref is
+/// an error rather than a silent fallback to the default branch.
+fn resolve_ref(cwd: &Path, r#ref: &str) -> anyhow::Result<String> {
+    let remote_branch = format!("origin/{}", r#ref);
+    if rev_parse_ok(cwd, &remote_branch) {
+        return Ok(remote_branch);
+    }
+    if rev_parse_ok(cwd, r#ref) {
+        return Ok(r#ref.to_string());
+    }
+    anyhow::bail!(
+        "ref '{}' not found in {} (looked for remote branch origin/{} and tag/commit {})",
+        r#ref,
+        cwd.display(),
+        r#ref,
+        r#ref,
+    );
+}
+
+/// Return true if `ref` resolves to a commit in the checkout. Tags are peeled
+/// to their commit so annotated tags resolve the same as lightweight ones.
+fn rev_parse_ok(cwd: &Path, r#ref: &str) -> bool {
+    Command::new("git")
+        .current_dir(cwd)
+        .args(["rev-parse", "--verify", "--quiet", &format!("{}^{{commit}}", r#ref)])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,5 +325,36 @@ mod tests {
         assert!(dst.path().join("src/main.rs").exists());
         assert!(!dst.path().join("target").exists());
         assert!(!dst.path().join(".git").exists());
+    }
+
+    #[test]
+    fn resolve_ref_handles_tags_and_unknown() {
+        let tmp = TempDir::new().unwrap();
+        let repo = tmp.path();
+
+        let git = |args: &[&str]| {
+            let ok = Command::new("git")
+                .current_dir(repo)
+                .args(args)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .unwrap()
+                .success();
+            assert!(ok, "git {:?} failed", args);
+        };
+
+        git(&["init", "--quiet"]);
+        git(&[
+            "-c", "user.email=tester",
+            "-c", "user.name=test",
+            "commit", "--allow-empty", "-m", "init", "--quiet",
+        ]);
+        git(&["tag", "v0.1.0"]);
+
+        // A tag with no matching remote branch resolves to the tag verbatim.
+        assert_eq!(resolve_ref(repo, "v0.1.0").unwrap(), "v0.1.0");
+        // An unknown ref is an error, not a silent fallback.
+        assert!(resolve_ref(repo, "v9.9.9").is_err());
     }
 }
