@@ -6,6 +6,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-05-26
+
+### Changed
+- `brdg` layer pins the release wheel to `v0.2.3` (was `v0.2.1`). v0.2.3 defaults
+  the CLI's `api_url` to `https://brdg.fly.dev`, so the layer's `brdg` talks to
+  the hosted backend out of the box without per-container configuration.
+  (v0.2.2 was CI-only and had no published wheel.)
+
 ## [0.8.4] - 2026-05-26
 
 ### Changed
@@ -212,7 +220,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.5...HEAD
+[0.8.5]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.4...v0.8.5
+[0.8.4]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.3...v0.8.4
+[0.8.3]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.2...v0.8.3
 [0.8.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.1...v0.8.2
 [0.8.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.7.0...v0.8.0

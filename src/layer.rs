@@ -276,7 +276,7 @@ pub fn catalog() -> Vec<Layer> {
             source_ref: None,
             release: Some(ReleaseAsset {
                 repo: "Battle-Creek-LLC/brdg",
-                tag: "v0.2.1",
+                tag: "v0.2.3",
                 pattern: "*.whl",
             }),
         },
