@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build:*)",
+      "Read(//private/tmp/agent-test/lin/**)",
+      "Read(//private/tmp/agent-test/schd/**)",
+      "Bash(cargo test:*)",
+      "Bash(cargo install:*)",
+      "Bash(claudine list:*)",
+      "WebFetch(domain:zed.dev)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:containers.dev)",
+      "Bash(./target/debug/claudine sh *)",
+      "Bash(./target/debug/claudine shell *)",
+      "Bash(claudine build *)",
+      "Bash(orbctl docker *)",
+      "Bash(claudine shell *)",
+      "Read(//Users/jstockdi/Library/Application Support/claudine/projects/**)",
+      "Read(//Users/jstockdi/Library/Application Support/claudine/**)"
+    ]
+  }
+}

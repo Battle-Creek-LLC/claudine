@@ -6,6 +6,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-05-26
+
+### Changed
+- `ddog` layer pins `bcl-ddog@0.4.0` (was `0.3.0`), picking up the 0.4.0 release.
+
 ## [0.8.5] - 2026-05-26
 
 ### Changed
@@ -220,7 +225,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.5...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.6...HEAD
+[0.8.6]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.3...v0.8.4
 [0.8.3]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.2...v0.8.3
