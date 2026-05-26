@@ -6,6 +6,21 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-05-26
+
+### Changed
+- `brdg` layer installs the release wheel into a dedicated virtualenv at
+  `/opt/brdg` and symlinks `brdg` onto `PATH`, instead of
+  `pip install --break-system-packages` into the base image's PEP 668
+  externally-managed system interpreter. This isolates brdg's dependency tree
+  (`typer`/`rich`/`httpx`/`keyring` → `cryptography`) from the system packages
+  and from other layers, and removes the `--break-system-packages` override.
+  Requires `python3-venv` in the base image (added below).
+
+### Added
+- Base image installs `python3-venv` (provides `ensurepip`), so layers can
+  create virtualenvs. Used by the reworked `brdg` layer.
+
 ## [0.8.2] - 2026-05-25
 
 ### Changed

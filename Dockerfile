@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     zsh \
     python3-pip \
+    python3-venv \
     vim \
     && rm -rf /var/lib/apt/lists/*
 

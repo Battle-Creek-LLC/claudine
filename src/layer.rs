@@ -256,11 +256,19 @@ pub fn catalog() -> Vec<Layer> {
         },
         Layer {
             name: "brdg",
-            description: "brdg CLI (Battle-Creek-LLC, Python, installed from the release wheel)",
+            description: "brdg CLI (Battle-Creek-LLC, Python, release wheel installed into an isolated venv)",
             requires: &[],
             build_tool: None,
+            // Install into a dedicated venv rather than `pip install
+            // --break-system-packages` into the base image's PEP 668
+            // externally-managed interpreter: isolates brdg's dependency tree
+            // (typer/rich/httpx/keyring -> cryptography) from the system
+            // packages and from other layers, and the symlink keeps `brdg` on
+            // PATH. Needs `python3-venv` in the base image (provides ensurepip).
             dockerfile: "COPY brdg /tmp/brdg\n\
-                RUN pip install --no-cache-dir --break-system-packages /tmp/brdg/*.whl \\\n\
+                RUN python3 -m venv /opt/brdg \\\n\
+                    && /opt/brdg/bin/pip install --no-cache-dir /tmp/brdg/*.whl \\\n\
+                    && ln -sf /opt/brdg/bin/brdg /usr/local/bin/brdg \\\n\
                     && rm -rf /tmp/brdg".to_string(),
             validate: &["brdg --help"],
             path: &[],
@@ -1039,8 +1047,15 @@ mod tests {
         let df = generate_dockerfile(&vec!["brdg".to_string()]).unwrap();
         assert!(df.contains("COPY brdg /tmp/brdg"));
         assert!(
-            df.contains("pip install --no-cache-dir --break-system-packages /tmp/brdg/*.whl"),
-            "brdg must install the staged wheel, got:\n{}",
+            df.contains("python3 -m venv /opt/brdg")
+                && df.contains("/opt/brdg/bin/pip install --no-cache-dir /tmp/brdg/*.whl")
+                && df.contains("ln -sf /opt/brdg/bin/brdg /usr/local/bin/brdg"),
+            "brdg must install the staged wheel into an isolated venv and symlink it onto PATH, got:\n{}",
+            df,
+        );
+        assert!(
+            !df.contains("--break-system-packages"),
+            "brdg must not pollute the system interpreter with --break-system-packages, got:\n{}",
             df,
         );
     }
