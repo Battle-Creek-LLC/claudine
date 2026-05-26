@@ -6,6 +6,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-05-26
+
+### Changed
+- `secops` layer pins `bcl-repocat@0.5.0` (was `0.4.0`), picking up the 0.5.0
+  release: GitLab support (audit/diff/apply) alongside GitHub, and the
+  `.repo.yml` → `.repo.github.yml` config rename. Layer description updated to
+  note repocat now hardens GitHub and GitLab.
+
 ## [0.8.6] - 2026-05-26
 
 ### Changed
@@ -225,7 +233,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.6...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.7...HEAD
+[0.8.7]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.4...v0.8.5
 [0.8.4]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.3...v0.8.4

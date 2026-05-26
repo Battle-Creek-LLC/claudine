@@ -229,11 +229,11 @@ pub fn catalog() -> Vec<Layer> {
         },
         Layer {
             name: "secops",
-            description: "Security ops CLIs: secunit (WISP control registry) + repocat (GitHub repo hardening)",
+            description: "Security ops CLIs: secunit (WISP control registry) + repocat (GitHub/GitLab repo hardening)",
             requires: &[],
             build_tool: None,
             dockerfile: "ARG SECUNIT_VERSION=0.1.2\n\
-                ARG REPOCAT_VERSION=0.4.0\n\
+                ARG REPOCAT_VERSION=0.5.0\n\
                 RUN cargo binstall -y --root /usr/local \"bcl-secunit@${SECUNIT_VERSION}\"\n\
                 RUN cargo binstall -y --disable-strategies compile --root /usr/local \"bcl-repocat@${REPOCAT_VERSION}\"".to_string(),
             validate: &["secunit --help", "repocat --help"],
