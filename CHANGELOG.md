@@ -6,6 +6,19 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-05-26
+
+### Changed
+- `brdg` layer pins the release wheel to `v0.2.1` (was `v0.2.0`). v0.2.1 fixes
+  a `NoKeyringError` crash in `brdg auth login` on headless systems with no OS
+  keychain backend (e.g. Debian Bookworm, which is the base image) — tokens now
+  fall back to a `0600` `~/.brdg/config.yaml`. This matters because the layer
+  runs the CLI inside exactly such a headless container.
+- Added `build-host-projects.sh`: rebuilds claudine project images from inside
+  a sandbox/devcontainer against the host's claudine config, via a one-off
+  `claudine-builder` image (bakes in the local `claudine` + `gh` binaries) that
+  mounts the host config, host `~/.ssh`, and the docker socket.
+
 ## [0.8.3] - 2026-05-26
 
 ### Changed
