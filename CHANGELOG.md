@@ -6,6 +6,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-05-27
+
+### Added
+- `claudine layer pins` command: lists every layer's pinned upstream version,
+  classified by where "latest" is published — `crates.io` (the `cargo binstall`
+  crates), `github-release` (`brdg`), `github-source` (the `git clone` / host
+  checkout layers: `lin`, `glab`, `rodney`, `terra`/`guild`), and `go.dev`
+  (`go`). Text table by default, `--json` for tooling. Layers that fetch latest
+  at build (`flyway`, `doctl`) or track apt (`node-*`) carry no pin and are
+  omitted.
+- `/dctr` doctor skill (`.claude/commands/dctr.md`): checks the catalog pins
+  against upstream latest (`/dctr upgrades`), dry-runs the maintenance plan
+  (`/dctr check`), or runs the full sweep — apply behind pins, rebuild the
+  projects that use the upgraded layers (prompting before rebuilding a running
+  container, since a rebuild ends its session), prune stopped containers, and
+  prompt for running ones. Built on `claudine layer pins --json`.
+
 ## [0.8.8] - 2026-05-27
 
 ### Changed
@@ -243,7 +260,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.8...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.8...v0.9.0
 [0.8.8]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.7...v0.8.8
 [0.8.7]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.5...v0.8.6

@@ -53,6 +53,137 @@ pub enum BuildTool {
     Go,
 }
 
+/// A single upstream version pin extracted from a layer, used by tooling
+/// (e.g. the `dctr` doctor skill) to compare against the latest available
+/// upstream and decide whether the catalog is behind.
+#[derive(serde::Serialize)]
+pub struct Pin {
+    /// Layer the pin belongs to.
+    pub layer: &'static str,
+    /// The thing being installed (crate name, repo basename, or `go`).
+    pub tool: String,
+    /// Where "latest" is published: `crates.io`, `github-release`,
+    /// `github-source`, or `go.dev`.
+    pub kind: &'static str,
+    /// The pinned version/tag/ref (`<default-branch>` for unpinned source).
+    pub version: String,
+    /// The upstream identifier to query: crate name, `owner/repo`, or `go.dev`.
+    pub source: String,
+}
+
+/// Normalize a GitHub clone URL (SSH or HTTPS) to an `owner/repo` slug.
+/// Leaves non-GitHub URLs untouched.
+fn gh_slug(url: &str) -> String {
+    let u = url.trim_end_matches('/').trim_end_matches(".git");
+    for prefix in ["git@github.com:", "https://github.com/", "http://github.com/"] {
+        if let Some(rest) = u.strip_prefix(prefix) {
+            return rest.to_string();
+        }
+    }
+    u.to_string()
+}
+
+/// Extract every upstream version pin a layer carries. Covers the four pin
+/// shapes in the catalog: crates.io (`ARG X_VERSION=` + `crate@${X_VERSION}`),
+/// GitHub release assets, GitHub source checkouts (the `source_repo` field and
+/// in-Dockerfile `git clone` / `cargo install --git` URLs), and the go.dev
+/// download URL. Layers that always fetch latest at build (flyway, doctl) or
+/// track apt (node) carry no pin and yield nothing.
+fn extract_pins(layer: &Layer) -> Vec<Pin> {
+    let mut pins = Vec::new();
+    let df = &layer.dockerfile;
+
+    // crates.io: pair `ARG <VAR>=<ver>` with `"<crate>@${<VAR>}"`.
+    let tokens: Vec<String> = df
+        .split_whitespace()
+        .map(|t| t.trim_matches('"').to_string())
+        .collect();
+    let mut args: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    for pair in tokens.windows(2) {
+        if pair[0] == "ARG" {
+            if let Some((var, val)) = pair[1].split_once('=') {
+                args.insert(var, val);
+            }
+        }
+    }
+    for tok in &tokens {
+        if let Some(at) = tok.find("@${") {
+            let krate = &tok[..at];
+            if let Some(end) = tok[at + 3..].find('}') {
+                let var = &tok[at + 3..at + 3 + end];
+                if let Some(ver) = args.get(var) {
+                    pins.push(Pin {
+                        layer: layer.name,
+                        tool: krate.to_string(),
+                        kind: "crates.io",
+                        version: (*ver).to_string(),
+                        source: krate.to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    // go.dev: `https://go.dev/dl/go<ver>.linux-...`.
+    if let Some(idx) = df.find("go.dev/dl/go") {
+        let after = &df[idx + "go.dev/dl/go".len()..];
+        let ver: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect::<String>()
+            .trim_end_matches('.')
+            .to_string();
+        if !ver.is_empty() {
+            pins.push(Pin {
+                layer: layer.name,
+                tool: "go".to_string(),
+                kind: "go.dev",
+                version: ver,
+                source: "go.dev".to_string(),
+            });
+        }
+    }
+
+    // GitHub release asset.
+    if let Some(rel) = &layer.release {
+        pins.push(Pin {
+            layer: layer.name,
+            tool: rel.repo.rsplit('/').next().unwrap_or(rel.repo).to_string(),
+            kind: "github-release",
+            version: rel.tag.to_string(),
+            source: rel.repo.to_string(),
+        });
+    }
+
+    // GitHub source checkouts: the host-side `source_repo` field plus any
+    // in-Dockerfile `git clone <url>` / `cargo install --git <url>`.
+    let mut source_urls: Vec<String> = layer.source_repo.map(str::to_string).into_iter().collect();
+    for marker in ["git clone ", "--git "] {
+        let mut from = 0;
+        while let Some(pos) = df[from..].find(marker) {
+            let abs = from + pos + marker.len();
+            if let Some(url) = df[abs..].split_whitespace().next() {
+                if url.contains("github.com") {
+                    source_urls.push(url.to_string());
+                }
+            }
+            from = abs;
+        }
+    }
+    for url in source_urls {
+        let slug = gh_slug(&url);
+        pins.push(Pin {
+            layer: layer.name,
+            tool: slug.rsplit('/').next().unwrap_or(&slug).to_string(),
+            kind: "github-source",
+            version: layer.source_ref.unwrap_or("<default-branch>").to_string(),
+            source: slug,
+        });
+    }
+
+    pins
+}
+
 /// Return the full catalog of built-in layers.
 pub fn catalog() -> Vec<Layer> {
     vec![
@@ -714,6 +845,32 @@ pub fn cmd_layer_available() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Print every layer's pinned upstream version, for `dctr`-style "is the
+/// catalog behind upstream?" checks. Text table by default; `--json` emits an
+/// array of `Pin` objects.
+pub fn cmd_layer_pins(json: bool) -> anyhow::Result<()> {
+    let mut pins: Vec<Pin> = catalog().iter().flat_map(extract_pins).collect();
+    pins.sort_by(|a, b| (a.layer, &a.source).cmp(&(b.layer, &b.source)));
+    pins.dedup_by(|a, b| a.layer == b.layer && a.source == b.source);
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&pins)?);
+    } else {
+        println!(
+            "{:<10} {:<14} {:<16} {:<18} {}",
+            "LAYER", "TOOL", "KIND", "PINNED", "SOURCE"
+        );
+        for p in &pins {
+            println!(
+                "{:<10} {:<14} {:<16} {:<18} {}",
+                p.layer, p.tool, p.kind, p.version, p.source
+            );
+        }
+    }
+
+    Ok(())
+}
+
 /// Collect the minimal set of layers needed to validate a given layer.
 ///
 /// Includes the target layer plus any required dependencies (picking the
@@ -884,6 +1041,65 @@ mod tests {
     #[test]
     fn find_unknown_layer() {
         assert!(find("does-not-exist").is_none());
+    }
+
+    /// Helper: collect every pin in the catalog keyed for assertions.
+    fn all_pins() -> Vec<Pin> {
+        catalog().iter().flat_map(extract_pins).collect()
+    }
+
+    #[test]
+    fn pins_cratesio_arg_pairing() {
+        // secops pairs two ARG vars with two crate refs.
+        let pins = all_pins();
+        let secunit = pins
+            .iter()
+            .find(|p| p.source == "bcl-secunit")
+            .expect("bcl-secunit pin present");
+        assert_eq!(secunit.kind, "crates.io");
+        assert_eq!(secunit.version, "0.4.2");
+        assert_eq!(secunit.layer, "secops");
+        let repocat = pins.iter().find(|p| p.source == "bcl-repocat").unwrap();
+        assert_eq!(repocat.version, "0.5.0");
+    }
+
+    #[test]
+    fn pins_go_version_has_no_trailing_dot() {
+        let pins = all_pins();
+        let go = pins.iter().find(|p| p.layer == "go").unwrap();
+        assert_eq!(go.kind, "go.dev");
+        assert_eq!(go.version, GO_VERSION);
+        assert!(!go.version.ends_with('.'));
+    }
+
+    #[test]
+    fn pins_github_release_and_source() {
+        let pins = all_pins();
+        let brdg = pins.iter().find(|p| p.layer == "brdg").unwrap();
+        assert_eq!(brdg.kind, "github-release");
+        assert_eq!(brdg.source, "Battle-Creek-LLC/brdg");
+        assert_eq!(brdg.version, "v0.2.3");
+
+        // lin clones github in-Dockerfile (no source_repo field) — still caught.
+        let lin = pins.iter().find(|p| p.layer == "lin").unwrap();
+        assert_eq!(lin.kind, "github-source");
+        assert_eq!(lin.source, "sprouted-dev/lin");
+
+        // terra uses the source_repo field (SSH URL) — normalized to a slug.
+        let terra = pins.iter().find(|p| p.source == "sprouted-dev/terra").unwrap();
+        assert_eq!(terra.kind, "github-source");
+    }
+
+    #[test]
+    fn pins_skip_dynamic_and_apt_layers() {
+        let pins = all_pins();
+        // flyway/doctl fetch latest at build; node uses apt — none are pinned.
+        for layer in ["flyway", "doctl", "node-22", "node-24"] {
+            assert!(
+                !pins.iter().any(|p| p.layer == layer),
+                "{layer} should carry no pin"
+            );
+        }
     }
 
     #[test]

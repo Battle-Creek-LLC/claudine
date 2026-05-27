@@ -150,6 +150,13 @@ pub enum LayerCommand {
     },
     /// Show all available layers
     Available,
+    /// Show every layer's pinned upstream version (crates.io, GitHub release,
+    /// GitHub source repo, go.dev)
+    Pins {
+        /// Emit machine-readable JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Validate a layer by building and running checks
     Validate {
         /// Layer name (omit to validate all)

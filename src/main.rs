@@ -81,6 +81,7 @@ fn main() -> anyhow::Result<()> {
                 layer::cmd_layer_list(&project)
             }
             LayerCommand::Available => layer::cmd_layer_available(),
+            LayerCommand::Pins { json } => layer::cmd_layer_pins(json),
             LayerCommand::Validate { layer: Some(name) } => layer::cmd_layer_validate(&name),
             LayerCommand::Validate { layer: None } => layer::cmd_layer_validate_all(),
         },

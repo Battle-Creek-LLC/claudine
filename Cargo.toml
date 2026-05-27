@@ -1,6 +1,6 @@
 [package]
 name = "claudine"
-version = "0.8.8"
+version = "0.9.0"
 edition = "2021"
 description = "Run Claude Code in isolated Docker containers"
 
