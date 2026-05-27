@@ -6,6 +6,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-05-27
+
+### Changed
+- `secops` layer pins `bcl-secunit@0.4.2` (was `0.1.2`), picking up everything
+  released since 0.1.2: the `secunit doctor` environment/registry preflight, the
+  internal risk register (`secunit risks`), the bundled skill standard library
+  (`secunit skills`), and the macOS GUI. 0.4.2 is also the first secunit release
+  to reach crates.io since 0.1.2 — the 0.2.x–0.4.1 tags were never published, so
+  the layer could not move off 0.1.2 until now.
+
 ## [0.8.7] - 2026-05-26
 
 ### Changed
@@ -233,7 +243,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.7...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.8...HEAD
+[0.8.8]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.7...v0.8.8
 [0.8.7]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.6...v0.8.7
 [0.8.6]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.5...v0.8.6
 [0.8.5]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.4...v0.8.5
