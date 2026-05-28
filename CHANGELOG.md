@@ -6,6 +6,22 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-05-28
+
+### Changed
+- `brdg` layer pins the release wheel to `v0.2.4` (was `v0.2.3`).
+- `go` layer pins the Go toolchain to `1.26.3` (was `1.25.8`).
+
+### Fixed
+- `/dctr` skill: corrected the rebuild semantics. `claudine build <project>` is
+  **non-disruptive** — its `remove_containers_for_image` filters by
+  `ancestor=claudine:<project>`, but by the time it runs the tag already points
+  at the new image, so a container running the *old* image no longer matches and
+  survives the build. The skill no longer prompts before rebuilding running
+  projects; instead it correctly attributes the disruption to the destroy step,
+  which is what makes a running project pick up its new image (next `run`/`shell`
+  recreates from it).
+
 ## [0.9.0] - 2026-05-27
 
 ### Added
@@ -260,7 +276,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.8...v0.9.0
 [0.8.8]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.7...v0.8.8
 [0.8.7]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.6...v0.8.7

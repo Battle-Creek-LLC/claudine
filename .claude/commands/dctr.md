@@ -114,25 +114,29 @@ cargo install --path .
 Re-run `claudine layer pins` to confirm the new values.
 
 ### 3. Rebuild affected projects
-Rebuild every affected project. **Safety gate:** `claudine build <project>` removes
-that project's container on success — so rebuilding a **running** project ends its
-live session.
-- Projects whose container is **stopped or absent** → rebuild directly: `claudine build <project>`.
-- Projects whose container is **running** → list them and **ask** before rebuilding ("this ends the running session for `<project>` — rebuild now?"). Skip the ones the user declines.
-Report each rebuild's result (the build prints layer validation).
+Rebuild every affected project: `claudine build <project>`. This is
+**non-disruptive** — a currently-running container keeps running its *old* image;
+the build only moves the `claudine:<project>` image tag. The new image takes effect
+the next time the container is created. So rebuild freely, regardless of container
+state. Report each rebuild's result (it prints layer validation).
 
 ### 4. Destroy containers that are NOT running
 For every project whose container **exists but is stopped**, remove just the
-container (keep the volume + config, so it's recreated on next `run`/`shell`):
+container (keep the volume + config). The next `run`/`shell` recreates it from the
+freshly-built image — so this is also how a rebuilt-but-idle project picks up its
+upgrade:
 ```bash
 claudine destroy <project> -y      # NO --purge
 ```
 List what you removed.
 
 ### 5. Prompt for RUNNING containers
-List the still-running containers and ask, per container (or as a batch), whether
-to destroy them. Default to **keeping** them. Only `claudine destroy <project> -y`
-(never `--purge`) for the ones the user approves.
+A running container is still on its **old** image after a rebuild; recreating it is
+the only way a running project picks up the new image. List the still-running
+containers and ask, per container (or as a batch), whether to destroy them now
+(this ends the live session; the next `run`/`shell` recreates from the rebuilt
+image). Default to **keeping** them. Only `claudine destroy <project> -y` (never
+`--purge`) for the ones the user approves.
 
 ### 6. Offer to release claudine
 The bumps in step 2 are "upgrades to be committed." If `src/layer.rs` changed,

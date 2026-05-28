@@ -2,7 +2,7 @@ use std::process::{Command, Stdio};
 
 use crate::{config, docker, sources};
 
-const GO_VERSION: &str = "1.25.8";
+const GO_VERSION: &str = "1.26.3";
 
 /// A built-in layer representing a Dockerfile snippet that can be layered
 /// on top of the base claudine image.
@@ -407,7 +407,7 @@ pub fn catalog() -> Vec<Layer> {
             source_ref: None,
             release: Some(ReleaseAsset {
                 repo: "Battle-Creek-LLC/brdg",
-                tag: "v0.2.3",
+                tag: "v0.2.4",
                 pattern: "*.whl",
             }),
         },
