@@ -6,6 +6,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-05-29
+
+### Changed
+- `secops` layer pins `bcl-secunit@0.5.0` (was `0.4.2`), picking up the 0.5.0
+  release: `secunit wisp` renders the WISP markdown set under `security/` into a
+  single branded PDF entirely in Rust (markdown → Typst → PDF, no external
+  toolchain), with cover page, table of contents, PDF bookmarks, and a
+  git-commit + SHA-256 provenance stamp.
+
 ## [0.9.1] - 2026-05-28
 
 ### Changed
@@ -276,7 +285,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.8...v0.9.0
 [0.8.8]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.7...v0.8.8

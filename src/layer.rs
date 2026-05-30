@@ -363,7 +363,7 @@ pub fn catalog() -> Vec<Layer> {
             description: "Security ops CLIs: secunit (WISP control registry) + repocat (GitHub/GitLab repo hardening)",
             requires: &[],
             build_tool: None,
-            dockerfile: "ARG SECUNIT_VERSION=0.4.2\n\
+            dockerfile: "ARG SECUNIT_VERSION=0.5.0\n\
                 ARG REPOCAT_VERSION=0.5.0\n\
                 RUN cargo binstall -y --root /usr/local \"bcl-secunit@${SECUNIT_VERSION}\"\n\
                 RUN cargo binstall -y --disable-strategies compile --root /usr/local \"bcl-repocat@${REPOCAT_VERSION}\"".to_string(),
@@ -1057,7 +1057,7 @@ mod tests {
             .find(|p| p.source == "bcl-secunit")
             .expect("bcl-secunit pin present");
         assert_eq!(secunit.kind, "crates.io");
-        assert_eq!(secunit.version, "0.4.2");
+        assert_eq!(secunit.version, "0.5.0");
         assert_eq!(secunit.layer, "secops");
         let repocat = pins.iter().find(|p| p.source == "bcl-repocat").unwrap();
         assert_eq!(repocat.version, "0.5.0");
@@ -1078,7 +1078,7 @@ mod tests {
         let brdg = pins.iter().find(|p| p.layer == "brdg").unwrap();
         assert_eq!(brdg.kind, "github-release");
         assert_eq!(brdg.source, "Battle-Creek-LLC/brdg");
-        assert_eq!(brdg.version, "v0.2.3");
+        assert_eq!(brdg.version, "v0.2.4");
 
         // lin clones github in-Dockerfile (no source_repo field) — still caught.
         let lin = pins.iter().find(|p| p.layer == "lin").unwrap();
