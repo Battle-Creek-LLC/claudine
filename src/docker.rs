@@ -476,6 +476,33 @@ pub fn cmd_list() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Copy a file from the host into a project's container.
+pub fn cmd_cp(project: &str, src: &str, dest: Option<&str>) -> anyhow::Result<()> {
+    check_docker()?;
+
+    let container = project::container_name(project);
+
+    if !project::container_exists(project)? {
+        anyhow::bail!("Container '{}' does not exist. Run `claudine run {}` first.", container, project);
+    }
+
+    let dest = dest.unwrap_or("/tmp/");
+    let target = format!("{}:{}", container, dest);
+
+    let status = std::process::Command::new("docker")
+        .args(["cp", src, &target])
+        .stdout(std::process::Stdio::null())
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to run 'docker cp': {e}"))?;
+
+    if !status.success() {
+        anyhow::bail!("docker cp failed.");
+    }
+
+    println!("Copied '{}' → {}:{}", src, container, dest);
+    Ok(())
+}
+
 /// Assemble Docker run arguments for launching a project container.
 ///
 /// This function is shared between `cmd_run` and `cmd_shell` to ensure

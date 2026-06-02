@@ -117,6 +117,19 @@ pub enum Command {
         no_cache: bool,
     },
 
+    /// Copy a file from the host into a project's container
+    #[command(name = "cp")]
+    Cp {
+        /// Name of the project
+        project: String,
+
+        /// Host path to copy
+        src: String,
+
+        /// Destination path inside the container (defaults to /tmp/)
+        dest: Option<String>,
+    },
+
     /// List all claudine projects
     List,
 

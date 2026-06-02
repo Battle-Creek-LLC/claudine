@@ -66,6 +66,10 @@ fn main() -> anyhow::Result<()> {
             let project = resolve::project(&project)?;
             docker::cmd_destroy(&project, purge, yes)
         }
+        Command::Cp { project, src, dest } => {
+            let project = resolve::project(&project)?;
+            docker::cmd_cp(&project, &src, dest.as_deref())
+        }
         Command::List => docker::cmd_list(),
         Command::Layer { command } => match command {
             LayerCommand::Add { project, layer } => {

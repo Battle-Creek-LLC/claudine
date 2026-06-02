@@ -6,6 +6,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-06-02
+
+### Added
+- `claudine cp <project> <src> [<dest>]`: copies a file from the host into a
+  project container via `docker cp`. Destination defaults to `/tmp/`.
+
 ## [0.9.2] - 2026-05-29
 
 ### Changed
