@@ -252,7 +252,7 @@ pub fn catalog() -> Vec<Layer> {
             description: "Microsoft ODBC Driver 18 for SQL Server",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN apt-get update && apt-get install -y unixodbc curl gnupg2 \\\n    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \\\n    && echo \"deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main\" > /etc/apt/sources.list.d/mssql-release.list \\\n    && apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
+            dockerfile: "RUN apt-get update && apt-get install -y unixodbc curl gnupg2 \\\n    && { curl -fsSL https://packages.microsoft.com/keys/microsoft.asc; curl -fsSL https://packages.microsoft.com/keys/microsoft-2025.asc; } | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \\\n    && echo \"deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/13/prod trixie main\" > /etc/apt/sources.list.d/mssql-release.list \\\n    && apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["odbcinst -j"],
             path: &[],
             source_repo: None,
@@ -291,7 +291,7 @@ pub fn catalog() -> Vec<Layer> {
             description: "OpenJDK 21 LTS runtime",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main\" \\\n       > /etc/apt/sources.list.d/adoptium.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends temurin-21-jre \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
+            dockerfile: "RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb trixie main\" \\\n       > /etc/apt/sources.list.d/adoptium.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends temurin-21-jre \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["java -version"],
             path: &[],
             source_repo: None,
@@ -458,11 +458,23 @@ pub fn catalog() -> Vec<Layer> {
             release: None,
         },
         Layer {
+            name: "gcloud",
+            description: "Google Cloud SDK (gcloud)",
+            requires: &[],
+            build_tool: None,
+            dockerfile: "RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \\\n    && echo \"deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main\" \\\n       > /etc/apt/sources.list.d/google-cloud-sdk.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends google-cloud-cli \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
+            validate: &["gcloud --version"],
+            path: &[],
+            source_repo: None,
+            source_ref: None,
+            release: None,
+        },
+        Layer {
             name: "terraform",
             description: "Terraform CLI for infrastructure provisioning",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com bookworm main\" \\\n       > /etc/apt/sources.list.d/hashicorp.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends terraform \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
+            dockerfile: "RUN curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com trixie main\" \\\n       > /etc/apt/sources.list.d/hashicorp.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends terraform \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["terraform version"],
             path: &[],
             source_repo: None,
@@ -1179,6 +1191,7 @@ mod tests {
         assert!(names.contains(&"go"));
         assert!(names.contains(&"postgres"));
         assert!(names.contains(&"aws"));
+        assert!(names.contains(&"gcloud"));
         assert!(names.contains(&"java"));
         assert!(names.contains(&"flyway"));
         assert!(names.contains(&"exp"));

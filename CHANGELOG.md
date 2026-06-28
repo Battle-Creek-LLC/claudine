@@ -6,6 +6,28 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-28
+
+### Changed
+- **Base image migrated from Debian bookworm to Debian trixie** (glibc 2.36 →
+  2.41). Required because terra HEAD now pulls in `fastembed`/`ort` (ONNX
+  Runtime), whose prebuilt static library links against glibc ≥ 2.38 and a
+  newer libstdc++; `sp` failed to link on bookworm (`undefined reference to
+  __isoc23_strtol` / `__cxa_call_terminate`). All `bookworm`-pinned apt repos
+  retargeted to `trixie`: the Docker CLI repo (`Dockerfile`) and the `adoptium`
+  (java) and `hashicorp` (terraform) layers. Every base and project image must
+  be rebuilt to pick up the new base.
+
+### Added
+- `gcloud` layer: installs the Google Cloud SDK (`gcloud`).
+
+### Fixed
+- `msodbc` layer: retargeted to the Debian 13 (`debian/13/prod trixie`)
+  Microsoft repo and now imports **both** `microsoft.asc` and
+  `microsoft-2025.asc`. Microsoft signs the Debian 13 repo with a new key
+  (`EE4D7792F748182B`) absent from the legacy `microsoft.asc`, so apt rejected
+  the repo as "not signed" with the old key alone.
+
 ## [0.9.3] - 2026-06-02
 
 ### Added
@@ -291,7 +313,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.3...v0.10.0
+[0.9.3]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.8.8...v0.9.0
