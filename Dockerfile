@@ -64,7 +64,7 @@ RUN curl -L --proto '=https' --tlsv1.2 -sSf \
       | bash
 
 # Install ward (PII/secrets scanner for Claude Code hooks) from prebuilt release
-ARG WARD_VERSION=0.1.2
+ARG WARD_VERSION=0.2.0
 RUN cargo binstall -y --root /usr/local "bcl-ward@${WARD_VERSION}"
 
 # Install `just` command runner via prebuilt binary so every project has it

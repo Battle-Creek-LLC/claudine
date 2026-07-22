@@ -83,6 +83,25 @@ cat > /home/claude/.claude/settings.json <<'SETTINGS'
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Read|WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ward pii",
+            "timeout": 5,
+            "statusMessage": "Scanning output for PII..."
+          },
+          {
+            "type": "command",
+            "command": "ward leaks",
+            "timeout": 5,
+            "statusMessage": "Scanning output for secrets..."
+          }
+        ]
+      }
     ]
   }
 }

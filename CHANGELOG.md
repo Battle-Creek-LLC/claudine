@@ -6,6 +6,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-22
+
+### Changed
+- Bump ward pin to `bcl-ward@0.2.0` (adds PostToolUse output redaction).
+- `setup-home.sh`: register `ward pii` / `ward leaks` under `PostToolUse`
+  (matcher `Bash|Read|WebFetch`) so tool output is redacted before Claude
+  sees it. Existing home volumes need the same entries added to their
+  `~/.claude/settings.json`; redaction is opt-in without them.
+
 ## [0.10.0] - 2026-06-28
 
 ### Changed
@@ -313,7 +322,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.3...v0.10.0
 [0.9.3]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.1...v0.9.2
