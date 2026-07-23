@@ -6,6 +6,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-07-23
+
+### Changed
+- `secops` layer pins `bcl-secunit@0.6.0` (was `0.5.0`), picking up the 0.6.0
+  release: `secunit report data --week|--month|--quarter|--year` for
+  weekly/monthly stakeholder reports (rendered and published as tracker
+  issues by the bundled `report` skill), held-not-forgiven missed due dates
+  (`secunit due --overdue` now fires), canonicalized `--period` spellings,
+  and in-band `manifest_errors` / `register_errors` / `lapsed_exceptions`
+  degradation across reports, `risks list`, and verify.
+
 ## [0.11.0] - 2026-07-22
 
 ### Changed
@@ -322,7 +333,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.3...v0.10.0
 [0.9.3]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.2...v0.9.3
