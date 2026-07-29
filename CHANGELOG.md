@@ -6,6 +6,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `brdg` layer pins the release wheel to `v0.4.0` (was `v0.2.4`). Picks up
+  moot automatic meeting recording (v0.3.0), meeting video export via
+  `recording --video`, and sending moot to an ad-hoc meeting URL (v0.4.0).
+
 ## [0.11.1] - 2026-07-23
 
 ### Changed

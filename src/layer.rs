@@ -407,7 +407,7 @@ pub fn catalog() -> Vec<Layer> {
             source_ref: None,
             release: Some(ReleaseAsset {
                 repo: "Battle-Creek-LLC/brdg",
-                tag: "v0.2.4",
+                tag: "v0.4.0",
                 pattern: "*.whl",
             }),
         },
@@ -1090,7 +1090,7 @@ mod tests {
         let brdg = pins.iter().find(|p| p.layer == "brdg").unwrap();
         assert_eq!(brdg.kind, "github-release");
         assert_eq!(brdg.source, "Battle-Creek-LLC/brdg");
-        assert_eq!(brdg.version, "v0.2.4");
+        assert_eq!(brdg.version, "v0.4.0");
 
         // lin clones github in-Dockerfile (no source_repo field) — still caught.
         let lin = pins.iter().find(|p| p.layer == "lin").unwrap();
