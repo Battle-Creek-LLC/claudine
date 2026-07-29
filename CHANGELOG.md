@@ -6,6 +6,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-29
+
 ### Added
 - Base image installs `mdpdf` 0.1.0 (Markdown → PDF) from its GitHub release
   binaries, sha256-verified, for amd64 and arm64. Not installed via
@@ -347,7 +349,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.9.3...v0.10.0
