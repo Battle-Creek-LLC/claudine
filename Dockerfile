@@ -72,6 +72,24 @@ RUN cargo binstall -y --root /usr/local just \
     && rm -rf /usr/local/cargo/registry /usr/local/cargo/git \
     && chmod -R a+rwX /usr/local/cargo
 
+# Install mdpdf (Markdown → PDF) from its GitHub release binaries. Not
+# binstall-able: bcl-mdpdf is not on crates.io, and the `mdpdf` crate there
+# is an unrelated third-party project.
+ARG MDPDF_VERSION=0.1.0
+RUN arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         amd64) triple=x86_64-unknown-linux-gnu ;; \
+         arm64) triple=aarch64-unknown-linux-gnu ;; \
+         *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
+       esac \
+    && cd /tmp \
+    && curl -fsSL -O "https://github.com/Battle-Creek-LLC/mdpdf/releases/download/v${MDPDF_VERSION}/mdpdf-${triple}.tar.gz" \
+    && curl -fsSL -O "https://github.com/Battle-Creek-LLC/mdpdf/releases/download/v${MDPDF_VERSION}/mdpdf-${triple}.sha256" \
+    && sha256sum -c "mdpdf-${triple}.sha256" \
+    && tar -xzf "mdpdf-${triple}.tar.gz" \
+    && install -m 0755 mdpdf /usr/local/bin/mdpdf \
+    && rm -f /tmp/mdpdf "/tmp/mdpdf-${triple}.tar.gz" "/tmp/mdpdf-${triple}.sha256"
+
 # Create non-root user. The home volume is mounted at /home/claude at runtime,
 # shadowing the image's /home/claude so shell state persists across containers.
 # Note: cargo perms are set in the just-install RUN above to avoid creating a

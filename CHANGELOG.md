@@ -6,6 +6,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Base image installs `mdpdf` 0.1.0 (Markdown → PDF) from its GitHub release
+  binaries, sha256-verified, for amd64 and arm64. Not installed via
+  `cargo binstall`: `bcl-mdpdf` is not on crates.io and the `mdpdf` crate
+  there is an unrelated third-party project.
+
 ### Changed
 - `brdg` layer pins the release wheel to `v0.4.0` (was `v0.2.4`). Picks up
   moot automatic meeting recording (v0.3.0), meeting video export via
