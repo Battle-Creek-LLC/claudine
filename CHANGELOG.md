@@ -6,6 +6,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-08-10
+
 ### Changed
 - `lin` layer pins the source checkout to `v0.8.0` (was the default branch).
   Picks up `cycle edit`, top-level `download`, threaded comment replies,
@@ -358,7 +360,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.1...HEAD
+[0.12.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.10.0...v0.11.0
