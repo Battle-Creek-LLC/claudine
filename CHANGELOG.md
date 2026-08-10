@@ -6,6 +6,15 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `lin` layer pins the source checkout to `v0.8.0` (was the default branch).
+  Picks up `cycle edit`, top-level `download`, threaded comment replies,
+  project start/target dates, label edit/delete, issue relations, raw GraphQL
+  commands, and `--due-date` on `issue create`/`issue edit`.
+- Pin extraction reads the clone URL past any leading flags, so a
+  `git clone --depth 1 --branch <tag> <url>` layer still reports its pin to
+  `claudine doctor`.
+
 ## [0.12.0] - 2026-07-29
 
 ### Added

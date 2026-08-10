@@ -162,10 +162,14 @@ fn extract_pins(layer: &Layer) -> Vec<Pin> {
         let mut from = 0;
         while let Some(pos) = df[from..].find(marker) {
             let abs = from + pos + marker.len();
-            if let Some(url) = df[abs..].split_whitespace().next() {
-                if url.contains("github.com") {
-                    source_urls.push(url.to_string());
-                }
+            // Skip any flags that precede the URL (e.g. `--depth 1 --branch v0.8.0`),
+            // stopping at the end of the command so a later clone isn't attributed here.
+            let url = df[abs..]
+                .split_whitespace()
+                .take_while(|t| *t != "&&")
+                .find(|t| t.contains("github.com"));
+            if let Some(url) = url {
+                source_urls.push(url.to_string());
             }
             from = abs;
         }
@@ -315,11 +319,11 @@ pub fn catalog() -> Vec<Layer> {
             description: "Fast CLI for Linear (built from source)",
             requires: &[],
             build_tool: Some(BuildTool::Rust),
-            dockerfile: "RUN git clone https://github.com/sprouted-dev/lin.git /tmp/lin \\\n    && cd /tmp/lin \\\n    && cargo build --release \\\n    && cp target/release/lin /usr/local/bin/lin \\\n    && chmod 755 /usr/local/bin/lin \\\n    && rm -rf /tmp/lin /usr/local/cargo/registry /usr/local/cargo/git".to_string(),
+            dockerfile: "RUN git clone --depth 1 --branch v0.8.0 https://github.com/sprouted-dev/lin.git /tmp/lin \\\n    && cd /tmp/lin \\\n    && cargo build --release \\\n    && cp target/release/lin /usr/local/bin/lin \\\n    && chmod 755 /usr/local/bin/lin \\\n    && rm -rf /tmp/lin /usr/local/cargo/registry /usr/local/cargo/git".to_string(),
             validate: &["lin --help"],
             path: &[],
             source_repo: None,
-            source_ref: None,
+            source_ref: Some("v0.8.0"),
             release: None,
         },
         Layer {
@@ -1096,6 +1100,8 @@ mod tests {
         let lin = pins.iter().find(|p| p.layer == "lin").unwrap();
         assert_eq!(lin.kind, "github-source");
         assert_eq!(lin.source, "sprouted-dev/lin");
+        // Tag pin survives the `--depth 1 --branch <tag>` flags before the URL.
+        assert_eq!(lin.version, "v0.8.0");
 
         // terra uses the source_repo field (SSH URL) — normalized to a slug.
         let terra = pins.iter().find(|p| p.source == "sprouted-dev/terra").unwrap();
