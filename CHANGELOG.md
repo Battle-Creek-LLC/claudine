@@ -6,6 +6,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `terra` layer validates `sprout --help` instead of `sp --help`. Upstream
+  terra renamed the sprout CLI binary from `sp` to `sprout`; the layer tracks
+  the default branch, so rebuilds now install `sprout`.
+
 ## [0.12.1] - 2026-08-10
 
 ### Changed

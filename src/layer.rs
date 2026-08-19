@@ -417,7 +417,7 @@ pub fn catalog() -> Vec<Layer> {
         },
         Layer {
             name: "terra",
-            description: "Terra sprout CLI (sp), built from a host-side checkout",
+            description: "Terra sprout CLI (sprout), built from a host-side checkout",
             requires: &[],
             build_tool: Some(BuildTool::Rust),
             dockerfile: "COPY terra /tmp/terra\n\
@@ -431,7 +431,7 @@ pub fn catalog() -> Vec<Layer> {
                     && printf '[endpoints]\\nsunlight = \"http://host.docker.internal:50061\"\\n' > /opt/terra-defaults/services.toml \\\n\
                     && printf 'default_agent: claude\\n\\nagents:\\n  claude:\\n    command: \"npx\"\\n    args: [\"@zed-industries/claude-agent-acp\"]\\n    protocol: acp\\n    models:\\n      default: opus\\n      available: [sonnet, opus, haiku]\\n    description: \"Claude Code via ACP adapter\"\\n\\ninstalled:\\n  - claude\\n\\ndefaults:\\n  agent: claude\\n  model: opus\\n\\nby_type:\\n  enrichment:\\n    model: haiku\\n  planning:\\n    model: opus\\n' > /opt/terra-defaults/agents.yaml\n\
                 ENV TERRA_HOME=/home/claude/.terra".to_string(),
-            validate: &["sp --help", "guild --help"],
+            validate: &["sprout --help", "guild --help"],
             path: &[],
             source_repo: Some("git@github.com:sprouted-dev/terra.git"),
             source_ref: None,
