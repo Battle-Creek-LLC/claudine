@@ -75,7 +75,7 @@ RUN cargo binstall -y --root /usr/local just \
 # Install mdpdf (Markdown → PDF) from its GitHub release binaries. Not
 # binstall-able: bcl-mdpdf is not on crates.io, and the `mdpdf` crate there
 # is an unrelated third-party project.
-ARG MDPDF_VERSION=0.1.0
+ARG MDPDF_VERSION=0.2.0
 RUN arch="$(dpkg --print-architecture)" \
     && case "$arch" in \
          amd64) triple=x86_64-unknown-linux-gnu ;; \

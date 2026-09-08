@@ -6,6 +6,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Base image installs `mdpdf` 0.2.0 (was 0.1.0). Picks up image embedding, so
+  `![alt](diagram.png)` renders the image instead of dropping it and printing
+  the alt text. Also adds header/footer bands and TOML config files.
+
 ## [0.12.2] - 2026-08-19
 
 ### Changed
