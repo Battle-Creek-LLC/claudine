@@ -4,6 +4,34 @@ use crate::{config, docker, sources};
 
 const GO_VERSION: &str = "1.26.3";
 
+/// Terra commit the `terra` layer builds `sprout` from.
+///
+/// Every claudine tenant is a thin client of the single Homestead daemon on the
+/// host, so the CLI has to match that daemon's build, not terra's tip.
+///
+/// # When this must move
+///
+/// When the host's Homestead daemon is upgraded to a new release — and only
+/// then. The release records the commit it was built from, so the check is
+/// exact rather than a judgement call:
+///
+/// ```text
+/// jq -r .source_revision ~/.homestead/releases/<active>/release-manifest.json
+/// ```
+///
+/// (`<active>` is the release named in the launchd job
+/// `dev.sprouted.homestead.sunlight`.) That value's short form must equal this
+/// constant, and equals `/opt/terra-defaults/terra-ref` inside a built image.
+///
+/// Nothing detects drift for you. `sprout`'s attach gate
+/// (`terra_discovery::compatibility_for_endpoint`, reached from
+/// `sprout::config::attach_verdict`) cannot: it judges a local
+/// `<home>/sunlight.json`, and a tenant container has none — the daemon's
+/// record is on the host. Its verdict here is `NoInstance`, "nothing to judge,
+/// proceed". A mismatched CLI therefore fails later, at whatever call the two
+/// builds disagree about, not at attach.
+const TERRA_REF: &str = "d20b9733";
+
 /// A built-in layer representing a Dockerfile snippet that can be layered
 /// on top of the base claudine image.
 pub struct Layer {
@@ -157,30 +185,56 @@ fn extract_pins(layer: &Layer) -> Vec<Pin> {
 
     // GitHub source checkouts: the host-side `source_repo` field plus any
     // in-Dockerfile `git clone <url>` / `cargo install --git <url>`.
-    let mut source_urls: Vec<String> = layer.source_repo.map(str::to_string).into_iter().collect();
+    //
+    // `source_ref` pins the layer's OWN `source_repo` checkout. A second repo
+    // cloned inside the Dockerfile is a different upstream and carries its own
+    // ref — an explicit `--branch`/`--tag` on that command, or none — so it must
+    // not inherit the field, or a layer that pins itself would report every repo
+    // it touches as pinned to its own commit.
+    const UNPINNED: &str = "<default-branch>";
+    let own_ref = || layer.source_ref.unwrap_or(UNPINNED).to_string();
+    let mut sources: Vec<(String, String)> = layer
+        .source_repo
+        .map(|repo| (repo.to_string(), own_ref()))
+        .into_iter()
+        .collect();
     for marker in ["git clone ", "--git "] {
         let mut from = 0;
         while let Some(pos) = df[from..].find(marker) {
             let abs = from + pos + marker.len();
-            // Skip any flags that precede the URL (e.g. `--depth 1 --branch v0.8.0`),
-            // stopping at the end of the command so a later clone isn't attributed here.
-            let url = df[abs..]
+            // Read this command only, stopping at its end so a later clone isn't
+            // attributed here. Flags may precede the URL (`--depth 1 --branch v0.8.0`).
+            let rest: Vec<&str> = df[abs..]
                 .split_whitespace()
                 .take_while(|t| *t != "&&")
-                .find(|t| t.contains("github.com"));
-            if let Some(url) = url {
-                source_urls.push(url.to_string());
+                .collect();
+            if let Some(url) = rest.iter().find(|t| t.contains("github.com")) {
+                let flagged = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--branch" || w[0] == "--tag")
+                    .map(|w| w[1].to_string());
+                let same_repo_as_field = layer
+                    .source_repo
+                    .is_some_and(|repo| gh_slug(repo) == gh_slug(url));
+                let version = match flagged {
+                    Some(v) => v,
+                    // Unflagged: the layer's own checkout when the field is
+                    // absent or names this same repo, otherwise an unpinned clone.
+                    None if layer.source_repo.is_none() || same_repo_as_field => own_ref(),
+                    None => UNPINNED.to_string(),
+                };
+                sources.push((url.to_string(), version));
             }
             from = abs;
         }
     }
-    for url in source_urls {
+    for (url, version) in sources {
         let slug = gh_slug(&url);
         pins.push(Pin {
             layer: layer.name,
             tool: slug.rsplit('/').next().unwrap_or(&slug).to_string(),
             kind: "github-source",
-            version: layer.source_ref.unwrap_or("<default-branch>").to_string(),
+            version,
             source: slug,
         });
     }
@@ -417,24 +471,57 @@ pub fn catalog() -> Vec<Layer> {
         },
         Layer {
             name: "terra",
-            description: "Terra sprout CLI (sprout), built from a host-side checkout",
+            description: "Terra sprout CLI (sprout) + guild, pinned to the Homestead daemon on the host",
             requires: &[],
             build_tool: Some(BuildTool::Rust),
-            dockerfile: "COPY terra /tmp/terra\n\
+            // A tenant is a THIN CLIENT of the one Homestead daemon on the host.
+            // It gets the CLI and nothing else: no `terra-sunlight`, no
+            // datastore, no instance identity. `[endpoints].sunlight` is what
+            // makes that true — without it `sprout` derives the endpoint from
+            // `[sunlight].addr` and dials a daemon inside the container that
+            // does not exist.
+            //
+            // The seed lands in two places. `/opt/terra-defaults` is what
+            // `setup-home.sh` copies into an existing home volume during
+            // `claudine init`; `/home/claude/.homestead` is what Docker copies
+            // into a FRESH home volume on first mount, which is the path that
+            // works without a re-init. `.homestead` is the directory
+            // terra-config resolves from `$HOME` on its own, so no
+            // `HOMESTEAD_HOME` is set — and the `TERRA_HOME` this line used to
+            // carry was dead twice over: it is not a home-resolution variable
+            // at all, and a thin client keeps no instance state in its home
+            // besides this config.
+            //
+            // `--locked` on the sprout install is part of the pin: without it
+            // `cargo install` re-resolves to the newest compatible dependency
+            // versions, so the same commit would not build the same binary.
+            dockerfile: format!(
+                "COPY terra /tmp/terra\n\
                 RUN apt-get update \\\n\
                     && apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev \\\n\
                     && cd /tmp/terra \\\n\
-                    && cargo install --path sprout --root /usr/local \\\n\
+                    && cargo install --locked --path sprout --root /usr/local \\\n\
                     && cargo install --git https://github.com/sprouted-dev/guild.git --root /usr/local \\\n\
                     && rm -rf /var/lib/apt/lists/* /tmp/terra /usr/local/cargo/registry /usr/local/cargo/git \\\n\
-                    && mkdir -p /opt/terra-defaults \\\n\
-                    && printf '[endpoints]\\nsunlight = \"http://host.docker.internal:50061\"\\n' > /opt/terra-defaults/services.toml \\\n\
-                    && printf 'default_agent: claude\\n\\nagents:\\n  claude:\\n    command: \"npx\"\\n    args: [\"@zed-industries/claude-agent-acp\"]\\n    protocol: acp\\n    models:\\n      default: opus\\n      available: [sonnet, opus, haiku]\\n    description: \"Claude Code via ACP adapter\"\\n\\ninstalled:\\n  - claude\\n\\ndefaults:\\n  agent: claude\\n  model: opus\\n\\nby_type:\\n  enrichment:\\n    model: haiku\\n  planning:\\n    model: opus\\n' > /opt/terra-defaults/agents.yaml\n\
-                ENV TERRA_HOME=/home/claude/.terra".to_string(),
-            validate: &["sprout --help", "guild --help"],
+                    && mkdir -p /opt/terra-defaults /home/claude/.homestead \\\n\
+                    && printf '{terra_ref}\\n' > /opt/terra-defaults/terra-ref \\\n\
+                    && printf '[endpoints]\\nsunlight = \"http://host.docker.internal:17176\"\\n' > /opt/terra-defaults/services.toml \\\n\
+                    && printf 'default_agent: claude\\n\\nagents:\\n  claude:\\n    command: \"npx\"\\n    args: [\"@zed-industries/claude-agent-acp\"]\\n    protocol: acp\\n    models:\\n      default: opus\\n      available: [sonnet, opus, haiku]\\n    description: \"Claude Code via ACP adapter\"\\n\\ninstalled:\\n  - claude\\n\\ndefaults:\\n  agent: claude\\n  model: opus\\n\\nby_type:\\n  enrichment:\\n    model: haiku\\n  planning:\\n    model: opus\\n' > /opt/terra-defaults/agents.yaml \\\n\
+                    && cp /opt/terra-defaults/services.toml /opt/terra-defaults/agents.yaml /opt/terra-defaults/terra-ref /home/claude/.homestead/ \\\n\
+                    && chown -R claude:claude /home/claude/.homestead",
+                terra_ref = TERRA_REF,
+            ),
+            validate: &[
+                "sprout --version",
+                "guild --help",
+                // A thin client must not carry the daemon. `cargo install
+                // --path sprout` cannot produce it today; this fails loudly if
+                // the install ever widens to the whole workspace.
+                "! command -v terra-sunlight > /dev/null",
+            ],
             path: &[],
             source_repo: Some("git@github.com:sprouted-dev/terra.git"),
-            source_ref: None,
+            source_ref: Some(TERRA_REF),
             release: None,
         },
         Layer {
@@ -1109,6 +1196,25 @@ mod tests {
     }
 
     #[test]
+    fn a_pinned_layer_does_not_claim_to_pin_a_second_repo() {
+        // terra pins its own checkout but clones guild unpinned in the same
+        // layer. Reporting guild at terra's commit would tell `claudine layer
+        // pins` — and the /dctr skill that reads it — that guild is pinned when
+        // moving terra's pin cannot move guild at all.
+        let pins = all_pins();
+        let terra = pins
+            .iter()
+            .find(|p| p.layer == "terra" && p.source == "sprouted-dev/terra")
+            .unwrap();
+        assert_eq!(terra.version, TERRA_REF);
+        let guild = pins
+            .iter()
+            .find(|p| p.source == "sprouted-dev/guild")
+            .expect("guild is cloned in-Dockerfile by the terra layer");
+        assert_eq!(guild.version, "<default-branch>");
+    }
+
+    #[test]
     fn pins_skip_dynamic_and_apt_layers() {
         let pins = all_pins();
         // flyway/doctl fetch latest at build; node uses apt — none are pinned.
@@ -1241,17 +1347,24 @@ mod tests {
             "expected cargo PATH to be injected into terra's first RUN, got:\n{}",
             result,
         );
-        // The RUN must still include the cargo install step later on.
-        assert!(result.contains("cargo install --path sprout --root /usr/local"));
-        // Guild CLI must be installed alongside sp from the sprouted-dev repo.
+        // The RUN must still include the cargo install step later on. `--locked`
+        // is part of the pin: without it the same commit resolves to whatever
+        // dependency versions are newest at build time.
+        assert!(result.contains("cargo install --locked --path sprout --root /usr/local"));
+        // Guild CLI must be installed alongside sprout from the sprouted-dev repo.
         assert!(result.contains("cargo install --git https://github.com/sprouted-dev/guild.git --root /usr/local"));
-        // services.toml default must be baked with the host.docker.internal endpoint
-        // into a build-time location that setup-home.sh seeds into the user's home.
-        assert!(result.contains("host.docker.internal:50061"));
+        // services.toml default must point at the one Homestead daemon on the
+        // host, on the port it actually listens on, and be baked into a
+        // build-time location that setup-home.sh seeds into the user's home.
+        assert!(result.contains("host.docker.internal:17176"));
+        assert!(
+            !result.contains(":50061"),
+            "50061 is the retired sunlight gRPC port, got:\n{}",
+            result,
+        );
         assert!(result.contains("/opt/terra-defaults/services.toml"));
         assert!(result.contains("/opt/terra-defaults/agents.yaml"));
         assert!(result.contains("default_agent: claude"));
-        assert!(result.contains("ENV TERRA_HOME=/home/claude/.terra"));
         assert!(
             !result.contains("/etc/terra"),
             "terra config must live under the user's home, not /etc/terra"
@@ -1261,7 +1374,7 @@ mod tests {
         assert!(result.contains("apt-get install -y --no-install-recommends protobuf-compiler"));
         assert!(
             !result.contains("apt-get purge -y --auto-remove protobuf-compiler"),
-            "terra layer must NOT purge protobuf-compiler — it is needed at runtime for rebuilding sp"
+            "terra layer must NOT purge protobuf-compiler — it is needed at runtime for rebuilding sprout"
         );
 
         let copy_pos = result.find("COPY terra /tmp/terra").unwrap();
@@ -1303,6 +1416,80 @@ mod tests {
             Some("git@github.com:sprouted-dev/terra.git")
         );
         assert_eq!(terra.build_tool, Some(BuildTool::Rust));
+    }
+
+    #[test]
+    fn terra_layer_is_pinned_to_the_host_daemons_commit() {
+        let terra = find("terra").unwrap();
+        // Tracking the default branch is what let the CLI drift away from the
+        // daemon it talks to.
+        assert_eq!(terra.source_ref, Some(TERRA_REF));
+
+        let result = generate_dockerfile(&vec!["terra".to_string()]).unwrap();
+        // The commit is recorded in the image so the pin can be compared against
+        // the host release's `source_revision` without rebuilding anything.
+        assert!(result.contains(&format!(
+            "printf '{}\\n' > /opt/terra-defaults/terra-ref",
+            TERRA_REF
+        )));
+
+        let pins = all_pins();
+        let pin = pins
+            .iter()
+            .find(|p| p.layer == "terra" && p.source == "sprouted-dev/terra")
+            .expect("terra carries a pin for its own checkout");
+        assert_eq!(pin.kind, "github-source");
+        assert_eq!(pin.version, TERRA_REF);
+    }
+
+    #[test]
+    fn terra_layer_seeds_a_thin_client_config() {
+        let result = generate_dockerfile(&vec!["terra".to_string()]).unwrap();
+        // The endpoints block is what makes the tenant a client of the host
+        // daemon rather than of a daemon in its own container.
+        assert!(result.contains("[endpoints]"));
+        assert!(result.contains("sunlight = \"http://host.docker.internal:17176\""));
+        // Seeded twice: /opt/terra-defaults is what setup-home.sh copies into an
+        // existing home volume, /home/claude/.homestead is what Docker copies
+        // into a fresh one.
+        assert!(result.contains(
+            "cp /opt/terra-defaults/services.toml /opt/terra-defaults/agents.yaml /opt/terra-defaults/terra-ref /home/claude/.homestead/"
+        ));
+        assert!(result.contains("chown -R claude:claude /home/claude/.homestead"));
+        // `.homestead` is what terra-config resolves from $HOME unaided, so a
+        // home-resolution variable would only add a second answer that can
+        // disagree. `TERRA_HOME` was never one of those answers at all.
+        assert!(
+            !result.contains("HOMESTEAD_HOME") && !result.contains("TERRA_HOME"),
+            "terra must rely on the default home resolution, got:\n{}",
+            result,
+        );
+        assert!(
+            !result.contains("/home/claude/.terra"),
+            "the legacy ~/.terra home is ignored by the current sprout, got:\n{}",
+            result,
+        );
+    }
+
+    #[test]
+    fn terra_layer_installs_no_daemon() {
+        let terra = find("terra").unwrap();
+        // A thin client must not carry `terra-sunlight`: it runs no daemon and
+        // holds no store or identity of its own.
+        assert!(
+            terra
+                .validate
+                .iter()
+                .any(|c| c.contains("! command -v terra-sunlight")),
+            "terra must assert the daemon is absent, got: {:?}",
+            terra.validate,
+        );
+        let result = generate_dockerfile(&vec!["terra".to_string()]).unwrap();
+        assert!(
+            !result.contains("--package sunlight") && !result.contains("--path sunlight"),
+            "terra must not build the sunlight package, got:\n{}",
+            result,
+        );
     }
 
     #[test]

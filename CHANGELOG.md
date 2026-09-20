@@ -7,6 +7,39 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- `terra` layer is now a pinned thin client of the Homestead daemon on the
+  host. Four changes, all of which reach `advice-cloud`, `bcl`, `jstockdi` and
+  `plotzy` on their next `claudine build`, not just the `kyc` tenant this was
+  needed for:
+  - The source checkout is pinned to commit `d20b9733` (was tracking terra's
+    default branch), and the sprout install gained `--locked`. That is the
+    commit the host daemon's active release was built from, recorded as
+    `source_revision` in
+    `~/.homestead/releases/<active>/release-manifest.json`. **Effect:** those
+    four tenants get `sprout` at `d20b9733` instead of terra's tip, with
+    dependency versions from that commit's `Cargo.lock`. Move the pin
+    (`TERRA_REF` in `src/layer.rs`) when the host daemon is upgraded; nothing
+    detects the drift, because sprout's attach gate judges a local
+    `<home>/sunlight.json` that a tenant container does not have.
+  - The seeded `[endpoints].sunlight` is `http://host.docker.internal:17176`
+    (was `50061`, a retired sunlight gRPC port). **Effect:** none for an
+    existing home volume, which already has its own `services.toml`; a
+    re-initialised or newly created tenant now gets a reachable endpoint
+    instead of a dead one.
+  - The seed is also written to `/home/claude/.homestead/` in the image, so a
+    fresh home volume inherits `services.toml`, `agents.yaml` and a
+    `terra-ref` provenance file on first mount. **Effect:** additive. It does
+    not replace `setup-home.sh`, which still seeds from `/opt/terra-defaults`
+    during `claudine init` and is the only path that reaches a home volume
+    that already exists.
+  - `ENV TERRA_HOME=/home/claude/.terra` is gone and nothing replaces it.
+    `TERRA_HOME` was never read: `HOMESTEAD_HOME` is terra-config's only
+    home-resolution variable, and it is not set either, because
+    `$HOME/.homestead` is what terra-config resolves unaided. **Effect:**
+    none — the variable had no reader.
+  - Layer validation runs `sprout --version` (was `sprout --help`) and asserts
+    `terra-sunlight` is absent, since a thin client runs no daemon and holds no
+    store or identity of its own.
 - Base image installs `mdpdf` 0.2.0 (was 0.1.0). Picks up image embedding, so
   `![alt](diagram.png)` renders the image instead of dropping it and printing
   the alt text. Also adds header/footer bands and TOML config files.
