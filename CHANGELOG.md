@@ -6,6 +6,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.3] - 2026-09-29
+
 ### Fixed
 - `run`, `shell` and other commands that start a container now build a
   missing project image (and the `claudine:latest` base, if it is also
@@ -412,7 +414,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.2...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.3...HEAD
+[0.12.3]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.2...v0.12.3
 [0.12.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.11.1...v0.12.0
