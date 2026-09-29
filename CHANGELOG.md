@@ -6,6 +6,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `run`, `shell` and other commands that start a container now build a
+  missing project image (and the `claudine:latest` base, if it is also
+  missing) before `docker run`, instead of failing with a registry
+  "pull access denied" error. A custom image name that is missing locally
+  now produces a clear error.
+
 ### Changed
 - `terra` layer is now a pinned thin client of the Homestead daemon on the
   host. Four changes, all of which reach `advice-cloud`, `bcl`, `jstockdi` and
