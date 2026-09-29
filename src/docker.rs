@@ -274,6 +274,7 @@ fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) 
     let project_config = config::load_project(project)?;
     let global_config = config::load_global()?;
     let image = config::resolve_image(&project_config, &global_config);
+    ensure_image(project, &image)?;
 
     let docker_args = build_run_args(project, &image, repo);
 
@@ -307,6 +308,42 @@ fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) 
 
     let err = cmd.exec();
     Err(anyhow::anyhow!("Failed to exec docker: {}", err))
+}
+
+/// Return true if a local image with the given tag exists.
+fn image_exists(image: &str) -> anyhow::Result<bool> {
+    let status = Command::new("docker")
+        .args(["image", "inspect", image])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_err(|e| anyhow::anyhow!("Failed to run 'docker image inspect': {e}"))?;
+    Ok(status.success())
+}
+
+/// Build the image a project runs on if it is missing locally, so `docker run`
+/// never falls through to a registry pull for a claudine tag.
+fn ensure_image(project: &str, image: &str) -> anyhow::Result<()> {
+    if image_exists(image)? {
+        return Ok(());
+    }
+
+    let project_tag = format!("claudine:{}", project);
+    if image != "claudine:latest" && image != project_tag {
+        anyhow::bail!(
+            "Image '{}' for project '{}' was not found locally. Build or pull it, then try again.",
+            image, project
+        );
+    }
+
+    println!("Image '{}' not found locally; building it now...", image);
+    if !image_exists("claudine:latest")? {
+        cmd_build(false)?;
+    }
+    if image == project_tag {
+        layer::cmd_build_project(project, false)?;
+    }
+    Ok(())
 }
 
 /// Destroy a project by removing its container and optionally its volume and configuration.
