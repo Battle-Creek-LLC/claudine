@@ -117,6 +117,12 @@ fn validate_postgres() {
     validate("postgres");
 }
 
+#[test]
+#[ignore]
+fn validate_openvpn() {
+    validate("openvpn");
+}
+
 // -- Slow layers (built from source) --
 
 #[test]

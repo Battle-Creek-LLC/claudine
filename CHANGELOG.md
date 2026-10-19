@@ -6,6 +6,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `openvpn` layer: installs the OpenVPN client. A project with this layer
+  starts its container with `--cap-add=NET_ADMIN --device=/dev/net/tun`
+  (not `--privileged`). Existing containers must be recreated to get the
+  new options.
+- Layers can declare `run_args`, extra `docker run` options that apply only
+  to projects that install the layer.
+
 ## [0.12.4] - 2026-11-08
 
 ### Changed
