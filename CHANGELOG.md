@@ -7,7 +7,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- `openvpn` layer: installs the OpenVPN client. A project with this layer
+- `openvpn` layer: installs the OpenVPN client and `iproute2`. A project with this layer
   starts its container with `--cap-add=NET_ADMIN --device=/dev/net/tun`
   (not `--privileged`). Existing containers must be recreated to get the
   new options.

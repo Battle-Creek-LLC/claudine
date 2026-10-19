@@ -342,12 +342,12 @@ pub fn catalog() -> Vec<Layer> {
         },
         Layer {
             name: "openvpn",
-            description: "OpenVPN client (container gets NET_ADMIN and /dev/net/tun)",
+            description: "OpenVPN client and iproute2 (container gets NET_ADMIN and /dev/net/tun)",
             requires: &[],
             build_tool: None,
-            dockerfile: "RUN apt-get update \\\n    && apt-get install -y --no-install-recommends openvpn \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
+            dockerfile: "RUN apt-get update \\\n    && apt-get install -y --no-install-recommends openvpn iproute2 \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             // `openvpn --version` exits non-zero by design; match its banner instead.
-            validate: &["openvpn --version | grep -q '^OpenVPN '"],
+            validate: &["openvpn --version | grep -q '^OpenVPN '", "ip route"],
             path: &[],
             run_args: &["--cap-add=NET_ADMIN", "--device=/dev/net/tun"],
             source_repo: None,
