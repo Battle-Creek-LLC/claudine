@@ -1,5 +1,6 @@
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -19,6 +20,16 @@ pub struct ProjectConfig {
     /// Defaults to `~/projects/<name>/` when unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_dir: Option<String>,
+    /// Per-layer git ref (branch, tag, or commit) for layers that build from a
+    /// `source_repo`, keyed by layer name. Overrides the layer's catalog
+    /// `source_ref`; a layer with neither tracks its remote's default branch.
+    ///
+    /// ```toml
+    /// [layer_refs]
+    /// terra = "a08b6563"
+    /// ```
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub layer_refs: BTreeMap<String, String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -111,6 +122,7 @@ fn migrate_project_config(raw: &str) -> Option<ProjectConfig> {
         layers: None,
         image: legacy.image,
         host_dir: None,
+        layer_refs: Default::default(),
     })
 }
 
@@ -286,6 +298,7 @@ mod tests {
                 name: "custom:latest".to_string(),
             }),
             host_dir: None,
+            layer_refs: Default::default(),
         };
         assert_eq!(resolve_image(&project, &global), "custom:latest");
     }
@@ -303,6 +316,7 @@ mod tests {
             layers: None,
             image: None,
             host_dir: None,
+            layer_refs: Default::default(),
         };
         assert_eq!(resolve_image(&project, &global), "claudine:latest");
     }
@@ -326,6 +340,7 @@ mod tests {
             layers: None,
             image: None,
             host_dir: None,
+            layer_refs: Default::default(),
         };
         let serialized = toml::to_string_pretty(&config).unwrap();
         let deserialized: ProjectConfig = toml::from_str(&serialized).unwrap();

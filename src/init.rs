@@ -823,12 +823,14 @@ fn execute_init(
         layers: layers_opt,
         image: image_override,
         host_dir: Some(host_dir.to_string_lossy().to_string()),
+        layer_refs: Default::default(),
     };
     config::save_project(name, &project_config)?;
 
     // Build project image if layers were specified (must happen before setup_home)
     if let Some(ref layer_list) = project_config.layers {
         if !layer_list.is_empty() {
+            layer::ensure_sources_for(layer_list, &project_config.layer_refs)?;
             let dockerfile = layer::generate_dockerfile(layer_list)?;
             crate::docker::cmd_build_project(name, &dockerfile, false)?;
         }

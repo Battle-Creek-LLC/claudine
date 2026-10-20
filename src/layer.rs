@@ -1,36 +1,28 @@
+use std::collections::BTreeMap;
 use std::process::{Command, Stdio};
 
 use crate::{config, docker, sources};
 
 const GO_VERSION: &str = "1.26.3";
 
-/// Terra commit the `terra` layer builds `sprout` from.
-///
-/// Every claudine tenant is a thin client of the single Homestead daemon on the
-/// host, so the CLI has to match that daemon's build, not terra's tip.
-///
-/// # When this must move
-///
-/// When the host's Homestead daemon is upgraded to a new release — and only
-/// then. The release records the commit it was built from, so the check is
-/// exact rather than a judgement call:
-///
-/// ```text
-/// jq -r .source_revision ~/.homestead/releases/<active>/release-manifest.json
-/// ```
-///
-/// (`<active>` is the release named in the launchd job
-/// `dev.sprouted.homestead.sunlight`.) That value's short form must equal this
-/// constant, and equals `/opt/terra-defaults/terra-ref` inside a built image.
-///
-/// Nothing detects drift for you. `sprout`'s attach gate
-/// (`terra_discovery::compatibility_for_endpoint`, reached from
-/// `sprout::config::attach_verdict`) cannot: it judges a local
-/// `<home>/sunlight.json`, and a tenant container has none — the daemon's
-/// record is on the host. Its verdict here is `NoInstance`, "nothing to judge,
-/// proceed". A mismatched CLI therefore fails later, at whatever call the two
-/// builds disagree about, not at attach.
-const TERRA_REF: &str = "d20b9733";
+// The `terra` layer builds `sprout` from the tip of terra's default branch.
+//
+// Every claudine tenant is a thin client of the single Homestead daemon on the
+// host. A CLI far older than that daemon lacks the doors the daemon serves (a
+// `d20b9733` pin predated `sprout move` and broke every garden write), so the
+// default is to track the newest build rather than a constant nobody bumps.
+//
+// A project that must match an older daemon exactly pins the checkout in its
+// config instead — the daemon's release records the commit it was built from:
+//
+// ```toml
+// [layer_refs]
+// terra = "a08b6563"   # jq -r .source_revision ~/.terra/current/release-manifest.json
+// ```
+//
+// Either way the built commit is stamped into `sprout --version` and into
+// `/opt/terra-defaults/terra-ref` inside the image, so drift can be read off a
+// running tenant without rebuilding anything.
 
 /// A built-in layer representing a Dockerfile snippet that can be layered
 /// on top of the base claudine image.
@@ -506,7 +498,7 @@ pub fn catalog() -> Vec<Layer> {
         },
         Layer {
             name: "terra",
-            description: "Terra sprout CLI (sprout) + guild, pinned to the Homestead daemon on the host",
+            description: "Terra sprout CLI (sprout) + guild, built from terra main unless the project pins layer_refs.terra",
             requires: &[],
             build_tool: Some(BuildTool::Rust),
             // A tenant is a THIN CLIENT of the one Homestead daemon on the host.
@@ -527,24 +519,30 @@ pub fn catalog() -> Vec<Layer> {
             // at all, and a thin client keeps no instance state in its home
             // besides this config.
             //
-            // `--locked` on the sprout install is part of the pin: without it
-            // `cargo install` re-resolves to the newest compatible dependency
-            // versions, so the same commit would not build the same binary.
+            // `--locked` on the sprout install keeps a commit reproducible:
+            // without it `cargo install` re-resolves to the newest compatible
+            // dependency versions, so the same commit would not build the same
+            // binary.
+            //
+            // `TERRA_BUILD_ID` carries the commit `ensure_source` recorded,
+            // because `.git` is not staged and terra's build script would
+            // otherwise stamp the binary `unknown`.
             dockerfile: format!(
                 "COPY terra /tmp/terra\n\
                 RUN apt-get update \\\n\
                     && apt-get install -y --no-install-recommends protobuf-compiler libprotobuf-dev \\\n\
                     && cd /tmp/terra \\\n\
-                    && cargo install --locked --path sprout --root /usr/local \\\n\
+                    && TERRA_REV=\"$(cat {rev_file} 2>/dev/null || echo unknown)\" \\\n\
+                    && TERRA_BUILD_ID=\"$TERRA_REV\" cargo install --locked --path sprout --root /usr/local \\\n\
                     && cargo install --git https://github.com/sprouted-dev/guild.git --root /usr/local \\\n\
                     && rm -rf /var/lib/apt/lists/* /tmp/terra /usr/local/cargo/registry /usr/local/cargo/git \\\n\
                     && mkdir -p /opt/terra-defaults /home/claude/.homestead \\\n\
-                    && printf '{terra_ref}\\n' > /opt/terra-defaults/terra-ref \\\n\
+                    && printf '%s\\n' \"$TERRA_REV\" > /opt/terra-defaults/terra-ref \\\n\
                     && printf '[endpoints]\\nsunlight = \"http://host.docker.internal:17176\"\\n' > /opt/terra-defaults/services.toml \\\n\
                     && printf 'default_agent: claude\\n\\nagents:\\n  claude:\\n    command: \"npx\"\\n    args: [\"@zed-industries/claude-agent-acp\"]\\n    protocol: acp\\n    models:\\n      default: opus\\n      available: [sonnet, opus, haiku]\\n    description: \"Claude Code via ACP adapter\"\\n\\ninstalled:\\n  - claude\\n\\ndefaults:\\n  agent: claude\\n  model: opus\\n\\nby_type:\\n  enrichment:\\n    model: haiku\\n  planning:\\n    model: opus\\n' > /opt/terra-defaults/agents.yaml \\\n\
                     && cp /opt/terra-defaults/services.toml /opt/terra-defaults/agents.yaml /opt/terra-defaults/terra-ref /home/claude/.homestead/ \\\n\
                     && chown -R claude:claude /home/claude/.homestead",
-                terra_ref = TERRA_REF,
+                rev_file = sources::SOURCE_REV_FILE,
             ),
             validate: &[
                 "sprout --version",
@@ -557,7 +555,7 @@ pub fn catalog() -> Vec<Layer> {
             path: &[],
             run_args: &[],
             source_repo: Some("git@github.com:sprouted-dev/terra.git"),
-            source_ref: Some(TERRA_REF),
+            source_ref: None,
             release: None,
         },
         Layer {
@@ -833,7 +831,7 @@ pub fn cmd_build_project(project: &str, no_cache: bool) -> anyhow::Result<()> {
         .filter(|p| !p.is_empty())
         .ok_or_else(|| anyhow::anyhow!("Project '{}' has no layers installed.", project))?;
 
-    ensure_sources_for(layers)?;
+    ensure_sources_for(layers, &project_config.layer_refs)?;
 
     let dockerfile = generate_dockerfile(layers)?;
     docker::cmd_build_project(project, &dockerfile, no_cache)?;
@@ -846,11 +844,14 @@ pub fn cmd_build_project(project: &str, no_cache: bool) -> anyhow::Result<()> {
 }
 
 /// Refresh the host-side source checkout for every layer in `layers` that
-/// declares a `source_repo`.
-fn ensure_sources_for(layers: &[String]) -> anyhow::Result<()> {
+/// declares a `source_repo`, at the ref the project pins in `layer_refs`.
+pub(crate) fn ensure_sources_for(
+    layers: &[String],
+    layer_refs: &BTreeMap<String, String>,
+) -> anyhow::Result<()> {
     for name in layers {
         if let Some(layer) = find(name) {
-            sources::ensure_source(&layer)?;
+            sources::ensure_source(&layer, layer_refs.get(name).map(String::as_str))?;
         }
     }
     Ok(())
@@ -893,7 +894,7 @@ pub fn cmd_layer_add(project: &str, layer: &str) -> anyhow::Result<()> {
 
     // Generate Dockerfile and build
     let layers = project_config.layers.as_ref().unwrap();
-    ensure_sources_for(layers)?;
+    ensure_sources_for(layers, &project_config.layer_refs)?;
     let dockerfile = generate_dockerfile(layers)?;
     docker::cmd_build_project(project, &dockerfile, false)?;
 
@@ -947,7 +948,7 @@ pub fn cmd_layer_remove(project: &str, layer: &str) -> anyhow::Result<()> {
         config::save_project(project, &project_config)?;
 
         let layers = project_config.layers.as_ref().unwrap();
-        ensure_sources_for(layers)?;
+        ensure_sources_for(layers, &project_config.layer_refs)?;
         let dockerfile = generate_dockerfile(layers)?;
         docker::cmd_build_project(project, &dockerfile, false)?;
 
@@ -1145,7 +1146,7 @@ pub fn cmd_layer_validate(name: &str) -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Unknown layer '{}'.", name))?;
 
     let layers = collect_validation_layers(name)?;
-    ensure_sources_for(&layers)?;
+    ensure_sources_for(&layers, &BTreeMap::new())?;
     let dockerfile = generate_dockerfile(&layers)?;
     let tag = format!("claudine:validate-{}", name);
 
@@ -1248,16 +1249,16 @@ mod tests {
 
     #[test]
     fn a_pinned_layer_does_not_claim_to_pin_a_second_repo() {
-        // terra pins its own checkout but clones guild unpinned in the same
-        // layer. Reporting guild at terra's commit would tell `claudine layer
-        // pins` — and the /dctr skill that reads it — that guild is pinned when
-        // moving terra's pin cannot move guild at all.
+        // terra's checkout and the guild clone in the same layer are separate
+        // upstreams. Reporting guild at terra's ref would tell `claudine layer
+        // pins` — and the /dctr skill that reads it — that guild follows terra
+        // when moving terra's ref cannot move guild at all.
         let pins = all_pins();
         let terra = pins
             .iter()
             .find(|p| p.layer == "terra" && p.source == "sprouted-dev/terra")
             .unwrap();
-        assert_eq!(terra.version, TERRA_REF);
+        assert_eq!(terra.version, "<default-branch>");
         let guild = pins
             .iter()
             .find(|p| p.source == "sprouted-dev/guild")
@@ -1470,27 +1471,21 @@ mod tests {
     }
 
     #[test]
-    fn terra_layer_is_pinned_to_the_host_daemons_commit() {
+    fn terra_layer_tracks_main_and_stamps_the_built_commit() {
         let terra = find("terra").unwrap();
-        // Tracking the default branch is what let the CLI drift away from the
-        // daemon it talks to.
-        assert_eq!(terra.source_ref, Some(TERRA_REF));
+        // A catalog pin nobody bumps is what left tenants on a CLI older than
+        // the daemon; a project that needs one sets `layer_refs.terra`.
+        assert_eq!(terra.source_ref, None);
 
         let result = generate_dockerfile(&vec!["terra".to_string()]).unwrap();
-        // The commit is recorded in the image so the pin can be compared against
-        // the host release's `source_revision` without rebuilding anything.
+        // The commit `ensure_source` recorded reaches both the binary's
+        // `--version` and the image, so drift is readable without a rebuild.
         assert!(result.contains(&format!(
-            "printf '{}\\n' > /opt/terra-defaults/terra-ref",
-            TERRA_REF
+            "TERRA_REV=\"$(cat {} 2>/dev/null || echo unknown)\"",
+            sources::SOURCE_REV_FILE
         )));
-
-        let pins = all_pins();
-        let pin = pins
-            .iter()
-            .find(|p| p.layer == "terra" && p.source == "sprouted-dev/terra")
-            .expect("terra carries a pin for its own checkout");
-        assert_eq!(pin.kind, "github-source");
-        assert_eq!(pin.version, TERRA_REF);
+        assert!(result.contains("TERRA_BUILD_ID=\"$TERRA_REV\" cargo install --locked --path sprout"));
+        assert!(result.contains("printf '%s\\n' \"$TERRA_REV\" > /opt/terra-defaults/terra-ref"));
     }
 
     #[test]
