@@ -134,6 +134,32 @@ pub fn container_start(project: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Wait until the container's entrypoint has handed PID 1 to its command.
+///
+/// The entrypoint adds `claude` to the docker socket's group. `docker exec -u
+/// claude` reads the supplementary groups from `/etc/group` when it starts, so
+/// an exec that races the entrypoint gets a session without socket access.
+pub fn wait_for_entrypoint(project: &str) -> anyhow::Result<()> {
+    const ENTRYPOINT_STAGES: [&str; 4] = ["env", "bash", "entrypoint.sh", "gosu"];
+    let name = container_name(project);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+
+    while std::time::Instant::now() < deadline {
+        let output = Command::new("docker")
+            .args(["exec", &name, "cat", "/proc/1/comm"])
+            .stderr(std::process::Stdio::null())
+            .output()
+            .map_err(|e| anyhow::anyhow!("Failed to run 'docker exec': {e}"))?;
+        let comm = String::from_utf8_lossy(&output.stdout);
+        if output.status.success() && !ENTRYPOINT_STAGES.contains(&comm.trim()) {
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    anyhow::bail!("Container '{name}' entrypoint did not finish within 60 seconds.")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
