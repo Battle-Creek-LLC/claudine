@@ -6,6 +6,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `run` and `shell` now wait for the container entrypoint to finish before
+  they `docker exec` into a container they just created or started. Before,
+  the exec could start before the entrypoint added `claude` to the docker
+  socket's group, and that session could not reach `/var/run/docker.sock`
+  until it was restarted.
+
 ## [0.12.3] - 2026-09-29
 
 ### Fixed

@@ -247,6 +247,7 @@ fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) 
     // State 2: Container exists but stopped — restart it, then exec
     if project::container_exists(project)? {
         project::container_start(project)?;
+        project::wait_for_entrypoint(project)?;
 
         let project_config = config::load_project(project)?;
         let layers = project_config.layers.as_deref().unwrap_or(&[]);
@@ -288,6 +289,7 @@ fn exec_in_project(project: &str, repo: Option<&str>, container_cmd: &[String]) 
     if !status.success() {
         anyhow::bail!("Failed to start container for project '{}'.", project);
     }
+    project::wait_for_entrypoint(project)?;
 
     let layers = project_config.layers.as_deref().unwrap_or(&[]);
     let path = layer::compute_path(layers);
