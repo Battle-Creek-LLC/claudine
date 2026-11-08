@@ -6,6 +6,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `brdg` layer pins the release wheel to `v0.5.0` (was `v0.4.0`). Picks up
+  `brdg sessions` (meeting sessions with agents) and `brdg skills install`,
+  which installs the bundled `session-join` Claude Code skill.
+
 ## [0.12.3] - 2026-09-29
 
 ### Fixed
