@@ -6,6 +6,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.4] - 2026-11-08
+
 ### Changed
 - `brdg` layer pins the release wheel to `v0.5.0` (was `v0.4.0`). Picks up
   `brdg sessions` (meeting sessions with agents) and `brdg skills install`,
@@ -419,7 +421,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.3...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.4...HEAD
+[0.12.4]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.3...v0.12.4
 [0.12.3]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.2...v0.12.3
 [0.12.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.1...v0.12.2
 [0.12.1]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.0...v0.12.1
