@@ -61,7 +61,7 @@ claudine layer add myproject heroku     # add Heroku CLI (requires node)
 
 Every `layer add`, `layer remove`, and `build <project>` automatically runs validation checks against the final image to catch installation failures and conflicts.
 
-Available layers: `node-22`, `node-24`, `gh`, `heroku`, `python-venv`, `msodbc`, `postgres`, `go`, `java`, `flyway`, `lin`, `exp`, `sumo`, `sntry`, `secops`, `ddog`, `terra`, `glab`, `aws`, `terraform`, `doctl`, `rodney`
+Available layers: `node-22`, `node-24`, `gh`, `heroku`, `python-venv`, `msodbc`, `postgres`, `openvpn`, `go`, `java`, `flyway`, `lin`, `exp`, `sumo`, `sntry`, `secops`, `ddog`, `terra`, `glab`, `aws`, `terraform`, `doctl`, `rodney`
 
 ### Standalone Validation
 
@@ -84,6 +84,7 @@ Layers are defined in `src/layer.rs` as entries in the `catalog()` function. Eac
 | `build_tool`  | `Option<BuildTool>`      | `Rust` or `Go` — toolchain is installed for build, then removed |
 | `dockerfile`  | `String`                 | Dockerfile snippet (`RUN`, `ENV`, etc.)                        |
 | `validate`    | `&[&str]`                | Shell commands that must exit 0 when the layer works correctly  |
+| `run_args`    | `&[&str]`                | Extra `docker run` options (capabilities, devices) for projects with the layer |
 
 Example:
 

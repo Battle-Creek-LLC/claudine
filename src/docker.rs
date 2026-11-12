@@ -576,6 +576,13 @@ pub(crate) fn build_run_args(project: &str, image: &str, repo: Option<&str>) -> 
         "--shm-size=256m".to_string(),
     ];
 
+    // Capabilities and devices requested by the project's layers
+    let layers = project_config
+        .as_ref()
+        .and_then(|c| c.layers.clone())
+        .unwrap_or_default();
+    args.extend(layer::compute_run_args(&layers));
+
     // Only allocate a TTY if stdin is a terminal
     if std::io::stdin().is_terminal() {
         args.push("-it".to_string());

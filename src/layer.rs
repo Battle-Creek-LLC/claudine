@@ -47,6 +47,10 @@ pub struct Layer {
     pub validate: &'static [&'static str],
     /// Directories to prepend to PATH at runtime for this layer.
     pub path: &'static [&'static str],
+    /// Extra `docker run` options the project container needs at runtime for
+    /// this layer (capabilities, devices). Applied only to projects that
+    /// install the layer.
+    pub run_args: &'static [&'static str],
     /// Git URL whose working tree should be checked out on the host into
     /// `<config>/sources/<layer-name>/` before each build. The Dockerfile can
     /// then `COPY` from that staged directory. `None` for layers that do not
@@ -253,6 +257,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable \\\n    && corepack prepare pnpm@latest --activate".to_string(),
             validate: &["node --version", "npm --version", "corepack --version", "pnpm --version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -265,6 +270,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \\\n    && apt-get install -y nodejs \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && corepack enable \\\n    && corepack prepare pnpm@latest --activate".to_string(),
             validate: &["node --version", "npm --version", "npx --version", "corepack --version", "pnpm --version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -277,6 +283,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \\\n       | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\" \\\n       > /etc/apt/sources.list.d/github-cli.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends gh \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["gh --version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -289,6 +296,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN curl https://cli-assets.heroku.com/install.sh | sh".to_string(),
             validate: &["heroku --version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -301,6 +309,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN PY_MINOR=$(python3 -c 'import sys; print(f\"{sys.version_info.major}.{sys.version_info.minor}\")') \\\n    && apt-get update && apt-get install -y python3-venv \"python${PY_MINOR}-venv\" \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["python3 -m venv /tmp/_venv_check && rm -rf /tmp/_venv_check"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -313,6 +322,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN apt-get update && apt-get install -y unixodbc curl gnupg2 \\\n    && { curl -fsSL https://packages.microsoft.com/keys/microsoft.asc; curl -fsSL https://packages.microsoft.com/keys/microsoft-2025.asc; } | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \\\n    && echo \"deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/13/prod trixie main\" > /etc/apt/sources.list.d/mssql-release.list \\\n    && apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["odbcinst -j"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -325,6 +335,21 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN apt-get update \\\n    && apt-get install -y --no-install-recommends postgresql-client \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["psql --version"],
             path: &[],
+            run_args: &[],
+            source_repo: None,
+            source_ref: None,
+            release: None,
+        },
+        Layer {
+            name: "openvpn",
+            description: "OpenVPN client and iproute2 (container gets NET_ADMIN and /dev/net/tun)",
+            requires: &[],
+            build_tool: None,
+            dockerfile: "RUN apt-get update \\\n    && apt-get install -y --no-install-recommends openvpn iproute2 \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
+            // `openvpn --version` exits non-zero by design; match its banner instead.
+            validate: &["openvpn --version | grep -q '^OpenVPN '", "ip route"],
+            path: &[],
+            run_args: &["--cap-add=NET_ADMIN", "--device=/dev/net/tun"],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -340,6 +365,7 @@ pub fn catalog() -> Vec<Layer> {
             ),
             validate: &["go version"],
             path: &["/usr/local/go/bin"],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -352,6 +378,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb trixie main\" \\\n       > /etc/apt/sources.list.d/adoptium.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends temurin-21-jre \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["java -version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -364,6 +391,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN FLYWAY_VERSION=$(curl -fsSL https://api.github.com/repos/flyway/flyway/releases/latest | grep '\"tag_name\"' | sed 's/.*\"flyway-\\(.*\\)\".*/\\1/') \\\n    && curl -fsSL \"https://download.red-gate.com/maven/release/com/redgate/flyway/flyway-commandline/${FLYWAY_VERSION}/flyway-commandline-${FLYWAY_VERSION}.tar.gz\" | tar -C /opt -xz \\\n    && chmod +x /opt/flyway-${FLYWAY_VERSION}/flyway \\\n    && ln -s /opt/flyway-${FLYWAY_VERSION}/flyway /usr/local/bin/flyway".to_string(),
             validate: &["flyway --help"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -376,6 +404,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN git clone --depth 1 --branch v0.8.0 https://github.com/sprouted-dev/lin.git /tmp/lin \\\n    && cd /tmp/lin \\\n    && cargo build --release \\\n    && cp target/release/lin /usr/local/bin/lin \\\n    && chmod 755 /usr/local/bin/lin \\\n    && rm -rf /tmp/lin /usr/local/cargo/registry /usr/local/cargo/git".to_string(),
             validate: &["lin --help"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: Some("v0.8.0"),
             release: None,
@@ -388,6 +417,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "ARG EXP_VERSION=0.1.2\nRUN cargo binstall -y --root /usr/local \"exp@${EXP_VERSION}\"".to_string(),
             validate: &["exp --help"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -400,6 +430,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "ARG SUMO_VERSION=0.1.4\nRUN cargo binstall -y --root /usr/local \"bcl-sumo@${SUMO_VERSION}\"".to_string(),
             validate: &["sumo --help"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -412,6 +443,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "ARG SNTRY_VERSION=0.3.0\nRUN cargo binstall -y --root /usr/local \"bcl-sntry@${SNTRY_VERSION}\"".to_string(),
             validate: &["sntry --help"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -427,6 +459,7 @@ pub fn catalog() -> Vec<Layer> {
                 RUN cargo binstall -y --disable-strategies compile --root /usr/local \"bcl-repocat@${REPOCAT_VERSION}\"".to_string(),
             validate: &["secunit --help", "repocat --help"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -439,6 +472,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "ARG DDOG_VERSION=0.4.0\nRUN cargo binstall -y --root /usr/local \"bcl-ddog@${DDOG_VERSION}\"".to_string(),
             validate: &["ddog --help"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -461,6 +495,7 @@ pub fn catalog() -> Vec<Layer> {
                     && rm -rf /tmp/brdg".to_string(),
             validate: &["brdg --help"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: Some(ReleaseAsset {
@@ -520,6 +555,7 @@ pub fn catalog() -> Vec<Layer> {
                 "! command -v terra-sunlight > /dev/null",
             ],
             path: &[],
+            run_args: &[],
             source_repo: Some("git@github.com:sprouted-dev/terra.git"),
             source_ref: Some(TERRA_REF),
             release: None,
@@ -532,6 +568,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN git clone https://github.com/jstockdi/glab.git /tmp/glab \\\n    && cd /tmp/glab \\\n    && make build \\\n    && cp bin/glab /usr/local/bin/glab \\\n    && chmod 755 /usr/local/bin/glab \\\n    && rm -rf /tmp/glab /root/go /root/.cache/go-build".to_string(),
             validate: &["glab version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -544,6 +581,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN curl -fsSL \"https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip\" -o /tmp/awscliv2.zip \\\n    && unzip -q /tmp/awscliv2.zip -d /tmp \\\n    && /tmp/aws/install \\\n    && rm -rf /tmp/awscliv2.zip /tmp/aws".to_string(),
             validate: &["aws --version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -556,6 +594,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \\\n    && echo \"deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main\" \\\n       > /etc/apt/sources.list.d/google-cloud-sdk.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends google-cloud-cli \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["gcloud --version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -568,6 +607,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg \\\n    && echo \"deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com trixie main\" \\\n       > /etc/apt/sources.list.d/hashicorp.list \\\n    && apt-get update \\\n    && apt-get install -y --no-install-recommends terraform \\\n    && rm -rf /var/lib/apt/lists/*".to_string(),
             validate: &["terraform version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -580,6 +620,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN DOCTL_VERSION=$(curl -fsSL https://api.github.com/repos/digitalocean/doctl/releases/latest | grep '\"tag_name\"' | sed 's/.*\"v\\(.*\\)\".*/\\1/') \\\n    && curl -fsSL \"https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-$(dpkg --print-architecture).tar.gz\" | tar -C /usr/local/bin -xz \\\n    && chmod 755 /usr/local/bin/doctl".to_string(),
             validate: &["doctl version"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -592,6 +633,7 @@ pub fn catalog() -> Vec<Layer> {
             dockerfile: "RUN apt-get update && apt-get install -y --no-install-recommends chromium \\\n    && rm -rf /var/lib/apt/lists/* \\\n    && git clone https://github.com/jstockdi/rodney.git /tmp/rodney \\\n    && cd /tmp/rodney \\\n    && go build -o /usr/local/bin/rodney . \\\n    && chmod 755 /usr/local/bin/rodney \\\n    && rm -rf /tmp/rodney /root/go /root/.cache/go-build".to_string(),
             validate: &["chromium --version", "rodney --help"],
             path: &[],
+            run_args: &[],
             source_repo: None,
             source_ref: None,
             release: None,
@@ -625,6 +667,15 @@ pub fn compute_path(layers: &[String]) -> String {
 
     entries.extend_from_slice(BASE_PATH);
     entries.join(":")
+}
+
+/// Collect the extra `docker run` options declared by the installed layers.
+pub fn compute_run_args(layers: &[String]) -> Vec<String> {
+    catalog()
+        .iter()
+        .filter(|layer| layers.iter().any(|n| n == layer.name))
+        .flat_map(|layer| layer.run_args.iter().map(|a| a.to_string()))
+        .collect()
 }
 
 /// Look up a layer by name in the catalog.
@@ -1572,5 +1623,19 @@ mod tests {
         let path = compute_path(&layers);
         assert!(path.contains("/usr/local/go/bin"));
         assert!(path.contains("/usr/local/cargo/bin"));
+    }
+
+    #[test]
+    fn compute_run_args_without_openvpn_is_empty() {
+        let layers = vec!["go".to_string(), "postgres".to_string()];
+        assert!(compute_run_args(&layers).is_empty());
+    }
+
+    #[test]
+    fn compute_run_args_with_openvpn() {
+        let layers = vec!["postgres".to_string(), "openvpn".to_string()];
+        let args = compute_run_args(&layers);
+        assert_eq!(args, vec!["--cap-add=NET_ADMIN", "--device=/dev/net/tun"]);
+        assert!(!args.iter().any(|a| a.contains("privileged")));
     }
 }

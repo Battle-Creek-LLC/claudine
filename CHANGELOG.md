@@ -6,6 +6,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-12
+
+### Added
+- `openvpn` layer: installs the OpenVPN client and `iproute2`. A project
+  with this layer starts its container with `--cap-add=NET_ADMIN --device=/dev/net/tun`
+  (not `--privileged`). Existing containers must be recreated to get the
+  new options.
+- Layers can declare `run_args`, extra `docker run` options that apply only
+  to projects that install the layer.
+
 ## [0.12.4] - 2026-11-08
 
 ### Changed
@@ -421,7 +431,8 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.4...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.4...v0.13.0
 [0.12.4]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.3...v0.12.4
 [0.12.3]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.2...v0.12.3
 [0.12.2]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.1...v0.12.2
