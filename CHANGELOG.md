@@ -6,6 +6,24 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-12
+
+### Changed
+- `terra` layer builds `sprout` from the tip of terra's default branch. It
+  was pinned to `d20b9733`, a commit older than `sprout move`, so a rebuilt
+  tenant got a `sprout` that could not make garden writes against the
+  current host daemon. Rebuild a tenant with `claudine build <project>` to
+  get the new `sprout`.
+- `sprout --version` in a rebuilt tenant names the terra commit it was built
+  from, not a bare `0.1.0`. The commit is also written to
+  `/opt/terra-defaults/terra-ref`.
+- `claudine init` refreshes layer sources before it builds the image.
+
+### Added
+- `[layer_refs]` in a project config pins the git ref (branch, tag, or
+  commit) of any layer that builds from a source repository. The entry
+  overrides the layer's catalog ref. Example: `terra = "a08b6563"`.
+
 ## [0.13.0] - 2026-11-12
 
 ### Added

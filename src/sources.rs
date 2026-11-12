@@ -22,14 +22,23 @@ const SKIP_DIRS: &[&str] = &["target", ".git", "node_modules", ".DS_Store"];
 /// Default `.dockerignore` written into every staged build context.
 const DOCKERIGNORE: &str = "**/target\n**/.git\n**/node_modules\n**/.DS_Store\n";
 
+/// File written at the root of every source checkout naming the commit it was
+/// reset to, as `<sha> <commit date>`. `.git` is never staged into the build
+/// context, so this is how a layer's Dockerfile learns what it is building.
+pub const SOURCE_REV_FILE: &str = ".claudine-source-rev";
+
 /// Ensure the host-side checkout for a layer is present and up to date.
 ///
 /// No-op for layers without a `source_repo`. On first run the repo is cloned
 /// into `<config>/sources/<layer-name>/`. On subsequent runs the remote is
-/// fetched and the working tree is reset to the desired ref (or the remote's
-/// default branch). Claudine owns this directory, so a hard reset is
-/// intentional — any local edits will be discarded.
-pub fn ensure_source(layer: &Layer) -> anyhow::Result<()> {
+/// fetched and the working tree is reset to the desired ref: `ref_override`
+/// (the project's `layer_refs` entry) when given, else the layer's
+/// `source_ref`, else the remote's default branch. Claudine owns this
+/// directory, so a hard reset is intentional — any local edits will be
+/// discarded.
+pub fn ensure_source(layer: &Layer, ref_override: Option<&str>) -> anyhow::Result<()> {
+    let desired_ref = ref_override.or(layer.source_ref);
+
     if let Some(release) = layer.release {
         return ensure_release(layer.name, &release);
     }
@@ -59,23 +68,42 @@ pub fn ensure_source(layer: &Layer) -> anyhow::Result<()> {
             anyhow::bail!("git clone of {} failed", repo);
         }
 
-        if let Some(r#ref) = layer.source_ref {
+        if let Some(r#ref) = desired_ref {
             run_git(&target, &["checkout", r#ref])?;
         }
 
-        return Ok(());
+        return write_source_rev(&target);
     }
 
     println!("Refreshing {} checkout at {}...", layer.name, target.display());
     run_git(&target, &["fetch", "--quiet", "--prune", "--tags", "origin"])?;
 
-    let target_ref = match layer.source_ref {
+    let target_ref = match desired_ref {
         Some(r) => resolve_ref(&target, r)?,
         None => resolve_default_branch(&target)?,
     };
     run_git(&target, &["reset", "--hard", &target_ref])?;
 
-    Ok(())
+    write_source_rev(&target)
+}
+
+/// Record the checkout's HEAD in [`SOURCE_REV_FILE`] and report it.
+fn write_source_rev(cwd: &Path) -> anyhow::Result<()> {
+    let output = Command::new("git")
+        .current_dir(cwd)
+        .args(["show", "-s", "--abbrev=12", "--format=%h %cs", "HEAD"])
+        .output()
+        .map_err(|e| anyhow::anyhow!("Failed to read HEAD in {}: {e}", cwd.display()))?;
+
+    if !output.status.success() {
+        anyhow::bail!("git show HEAD failed in {}", cwd.display());
+    }
+
+    let rev = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    println!("  at {rev}");
+    fs::write(cwd.join(SOURCE_REV_FILE), format!("{rev}\n")).map_err(|e| {
+        anyhow::anyhow!("Failed to write {}: {e}", cwd.join(SOURCE_REV_FILE).display())
+    })
 }
 
 /// Download a layer's GitHub release asset(s) host-side via `gh`.
