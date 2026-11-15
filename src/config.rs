@@ -30,6 +30,15 @@ pub struct ProjectConfig {
     /// ```
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub layer_refs: BTreeMap<String, String>,
+    /// Ports published from the project container, in `docker run -p` form.
+    /// Applied when the container is created, so a change takes effect after
+    /// `claudine destroy <project>` or `claudine build <project>`.
+    ///
+    /// ```toml
+    /// ports = ["127.0.0.1:3775:3773"]   # host loopback 3775 -> T3 server
+    /// ```
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ports: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -123,6 +132,7 @@ fn migrate_project_config(raw: &str) -> Option<ProjectConfig> {
         image: legacy.image,
         host_dir: None,
         layer_refs: Default::default(),
+        ports: Vec::new(),
     })
 }
 
@@ -299,6 +309,7 @@ mod tests {
             }),
             host_dir: None,
             layer_refs: Default::default(),
+            ports: Vec::new(),
         };
         assert_eq!(resolve_image(&project, &global), "custom:latest");
     }
@@ -317,6 +328,7 @@ mod tests {
             image: None,
             host_dir: None,
             layer_refs: Default::default(),
+            ports: Vec::new(),
         };
         assert_eq!(resolve_image(&project, &global), "claudine:latest");
     }
@@ -341,6 +353,7 @@ mod tests {
             image: None,
             host_dir: None,
             layer_refs: Default::default(),
+            ports: Vec::new(),
         };
         let serialized = toml::to_string_pretty(&config).unwrap();
         let deserialized: ProjectConfig = toml::from_str(&serialized).unwrap();

@@ -148,3 +148,9 @@ fn validate_glab() {
 fn validate_rodney() {
     validate("rodney");
 }
+
+#[test]
+#[ignore]
+fn validate_t3() {
+    validate("t3");
+}

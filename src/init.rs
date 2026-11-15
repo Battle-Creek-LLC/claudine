@@ -824,6 +824,7 @@ fn execute_init(
         image: image_override,
         host_dir: Some(host_dir.to_string_lossy().to_string()),
         layer_refs: Default::default(),
+        ports: Vec::new(),
     };
     config::save_project(name, &project_config)?;
 

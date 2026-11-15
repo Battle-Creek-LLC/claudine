@@ -61,7 +61,33 @@ claudine layer add myproject heroku     # add Heroku CLI (requires node)
 
 Every `layer add`, `layer remove`, and `build <project>` automatically runs validation checks against the final image to catch installation failures and conflicts.
 
-Available layers: `node-22`, `node-24`, `gh`, `heroku`, `python-venv`, `msodbc`, `postgres`, `openvpn`, `go`, `java`, `flyway`, `lin`, `exp`, `sumo`, `sntry`, `secops`, `ddog`, `terra`, `glab`, `aws`, `terraform`, `doctl`, `rodney`
+Available layers: `node-22`, `node-24`, `gh`, `heroku`, `python-venv`, `msodbc`, `postgres`, `openvpn`, `go`, `java`, `flyway`, `lin`, `exp`, `sumo`, `sntry`, `secops`, `ddog`, `terra`, `glab`, `aws`, `terraform`, `doctl`, `rodney`, `t3`
+
+### T3 Code server
+
+The `t3` layer (requires `node-24` or `node-22`) installs the T3 Code launcher
+and starts `t3 serve` on port 3773 inside the container whenever the container
+starts. Publish the port to the host in the project config
+(`~/Library/Application Support/claudine/projects/<name>/config.toml`), using a
+distinct host port per project:
+
+```toml
+ports = ["127.0.0.1:3775:3773"]
+```
+
+```bash
+claudine layer add myproject t3          # rebuilds; next shell recreates the container
+claudine shell myproject -- t3 pair      # mint a pairing token for the T3 app
+```
+
+The entrypoint also turns on T3's Linked environments setting (when it is
+not already set), which the host's T3 app needs to link the server. T3 only
+links plain-HTTP servers on loopback, so link through the published host
+port, e.g. `http://127.0.0.1:3775`.
+
+Server output, including the first pairing URL, is written to
+`/home/claude/.t3/serve.log`. `ports` apply when the container is created, so
+run `claudine destroy <project>` after changing them.
 
 ### Standalone Validation
 
