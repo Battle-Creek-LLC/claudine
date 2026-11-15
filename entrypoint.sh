@@ -31,7 +31,18 @@ export PATH="/home/claude/.local/bin:$PATH"
 # 0.0.0.0:3773 inside the container; the project's `ports` config publishes it
 # to the host. Pairing details are written to ~/.t3/serve.log.
 if [ "${CLAUDINE_T3_SERVE:-}" = "1" ] && command -v t3 > /dev/null 2>&1; then
-    install -d -o claude -g claude /home/claude/.t3
+    install -d -o claude -g claude /home/claude/.t3 /home/claude/.t3/userdata
+    # Linked environments must be on for the host's T3 app to link this
+    # server. Set the flag when it is absent; an explicit false is kept.
+    T3_SETTINGS=/home/claude/.t3/userdata/settings.json
+    if [ ! -s "$T3_SETTINGS" ]; then
+        echo '{}' > "$T3_SETTINGS"
+    fi
+    if jq -e 'has("linkedEnvironmentsEnabled") | not' "$T3_SETTINGS" > /dev/null 2>&1; then
+        jq '.linkedEnvironmentsEnabled = true' "$T3_SETTINGS" > "$T3_SETTINGS.tmp" \
+            && mv "$T3_SETTINGS.tmp" "$T3_SETTINGS"
+    fi
+    chown claude:claude "$T3_SETTINGS"
     gosu claude env HOME=/home/claude \
         nohup t3 serve --host 0.0.0.0 --port 3773 --no-browser "$PWD" \
         >> /home/claude/.t3/serve.log 2>&1 &

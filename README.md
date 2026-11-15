@@ -80,6 +80,11 @@ claudine layer add myproject t3          # rebuilds; next shell recreates the co
 claudine shell myproject -- t3 pair      # mint a pairing token for the T3 app
 ```
 
+The entrypoint also turns on T3's Linked environments setting (when it is
+not already set), which the host's T3 app needs to link the server. T3 only
+links plain-HTTP servers on loopback, so link through the published host
+port, e.g. `http://127.0.0.1:3775`.
+
 Server output, including the first pairing URL, is written to
 `/home/claude/.t3/serve.log`. `ports` apply when the container is created, so
 run `claudine destroy <project>` after changing them.

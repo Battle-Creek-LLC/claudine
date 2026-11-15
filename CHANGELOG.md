@@ -11,7 +11,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ### Added
 - `t3` layer: installs the T3 Code launcher (`t3@0.1.9`, requires `node-24`
   or `node-22`). The entrypoint starts `t3 serve` on 0.0.0.0:3773 inside the
-  container on every container start and logs to `~/.t3/serve.log`. Rebuild
+  container on every container start and logs to `~/.t3/serve.log`. It also
+  turns on T3's Linked environments setting when the setting is absent, so
+  the host's T3 app can link the server. Rebuild
   the base image with `claudine build` to get the new entrypoint.
 - `ports` in a project config publishes container ports with `docker run -p`,
   for example `ports = ["127.0.0.1:3775:3773"]` for a T3 server. This
