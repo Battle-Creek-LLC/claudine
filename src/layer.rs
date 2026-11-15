@@ -636,6 +636,29 @@ pub fn catalog() -> Vec<Layer> {
             source_ref: None,
             release: None,
         },
+        Layer {
+            name: "t3",
+            description: "T3 Code server (npm launcher), started by the entrypoint on port 3773",
+            requires: &["node-24", "node-22"],
+            build_tool: None,
+            // The npm package is only a launcher: on first run it downloads the
+            // self-contained T3 executable into `$HOME/.t3/runtime`, which lives
+            // on the home volume and survives container rebuilds. The launcher
+            // version pins the runtime version.
+            //
+            // `CLAUDINE_T3_SERVE` tells `entrypoint.sh` to start `t3 serve` on
+            // 0.0.0.0:3773 inside the container. Publish it to the host with the
+            // project's `ports` config, e.g. `ports = ["127.0.0.1:3775:3773"]`.
+            dockerfile: "RUN npm install -g --no-fund --no-audit t3@0.1.9".to_string(),
+            // Validation must not run the launcher: any `t3` invocation fetches
+            // the ~100 MB runtime.
+            validate: &["npm ls -g t3", "test -x \"$(command -v t3)\""],
+            path: &[],
+            run_args: &["-e", "CLAUDINE_T3_SERVE=1"],
+            source_repo: None,
+            source_ref: None,
+            release: None,
+        },
     ]
 }
 
@@ -1632,5 +1655,17 @@ mod tests {
         let args = compute_run_args(&layers);
         assert_eq!(args, vec!["--cap-add=NET_ADMIN", "--device=/dev/net/tun"]);
         assert!(!args.iter().any(|a| a.contains("privileged")));
+    }
+
+    #[test]
+    fn compute_run_args_with_t3() {
+        let layers = vec!["node-24".to_string(), "t3".to_string()];
+        assert_eq!(compute_run_args(&layers), vec!["-e", "CLAUDINE_T3_SERVE=1"]);
+    }
+
+    #[test]
+    fn t3_requires_node() {
+        assert!(check_requires("t3", &[]).is_err());
+        assert!(check_requires("t3", &["node-24".to_string()]).is_ok());
     }
 }

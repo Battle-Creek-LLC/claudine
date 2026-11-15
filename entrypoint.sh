@@ -27,6 +27,16 @@ fi
 # Ensure ~/.local/bin is on PATH for all shell types
 export PATH="/home/claude/.local/bin:$PATH"
 
+# Start the T3 Code server for projects with the t3 layer. It listens on
+# 0.0.0.0:3773 inside the container; the project's `ports` config publishes it
+# to the host. Pairing details are written to ~/.t3/serve.log.
+if [ "${CLAUDINE_T3_SERVE:-}" = "1" ] && command -v t3 > /dev/null 2>&1; then
+    install -d -o claude -g claude /home/claude/.t3
+    gosu claude env HOME=/home/claude \
+        nohup t3 serve --host 0.0.0.0 --port 3773 --no-browser "$PWD" \
+        >> /home/claude/.t3/serve.log 2>&1 &
+fi
+
 # Drop privileges and execute the requested command (or bash if none given)
 if [ $# -eq 0 ]; then
     exec gosu claude zsh

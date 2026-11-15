@@ -6,6 +6,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-15
+
+### Added
+- `t3` layer: installs the T3 Code launcher (`t3@0.1.9`, requires `node-24`
+  or `node-22`). The entrypoint starts `t3 serve` on 0.0.0.0:3773 inside the
+  container on every container start and logs to `~/.t3/serve.log`. Rebuild
+  the base image with `claudine build` to get the new entrypoint.
+- `ports` in a project config publishes container ports with `docker run -p`,
+  for example `ports = ["127.0.0.1:3775:3773"]` for a T3 server. This
+  replaces a hand-run socat forwarder to the container IP, which broke when
+  the container restarted with a new address.
+
 ## [0.14.0] - 2026-11-12
 
 ### Changed
@@ -449,7 +461,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `just` command runner pre-installed in the base image
 - Persistent containers across sessions; `destroy` vs `purge` distinction
 
-[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.4...v0.13.0
 [0.12.4]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.3...v0.12.4
 [0.12.3]: https://github.com/Battle-Creek-LLC/claudine/compare/v0.12.2...v0.12.3

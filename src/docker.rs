@@ -583,6 +583,14 @@ pub(crate) fn build_run_args(project: &str, image: &str, repo: Option<&str>) -> 
         .unwrap_or_default();
     args.extend(layer::compute_run_args(&layers));
 
+    // Ports the project publishes (e.g. a T3 server)
+    if let Some(cfg) = project_config.as_ref() {
+        for port in &cfg.ports {
+            args.push("-p".to_string());
+            args.push(port.clone());
+        }
+    }
+
     // Only allocate a TTY if stdin is a terminal
     if std::io::stdin().is_terminal() {
         args.push("-it".to_string());
